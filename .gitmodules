@@ -1,0 +1,3 @@
+[submodule "submodules/kilosim-gridbots"]
+	path = submodules/kilosim-gridbots
+	url = git@github.com:jtebert/kilosim-gridbots.git
