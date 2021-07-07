@@ -1,4 +1,4 @@
-#include "Bot.cpp"
+#include "HybridBot.cpp"
 #include <kilosim/World.h>
 #include <kilosim/Viewer.h>
 
@@ -16,15 +16,15 @@ int main(int argc, char *argv[])
     int num_robots = 1;
 
     // Create robots and place in world
-    std::vector<Kilosim::DemoGridbot *> robots(num_robots);
+    std::vector<Kilosim::HybridBot *> robots(num_robots);
     for (int n = 0; n < num_robots; n++)
     {
-        robots[n] = new Kilosim::DemoGridbot();
+        robots[n] = new Kilosim::HybridBot();
         world.add_robot(robots[n]);
         robots[n]->robot_init(n, n, 0);
     }
 
-    std::vector<Pos> path = robots[0]->gen_line(10, 10, 12, 5);
+    // robots[0]->set_path(10, 10, 12, 5);
     // for (int i = 0; i < path.size(); i++)
     // {
     //     std::cout << path[i].x << ", " << path[i].y << std::endl;
