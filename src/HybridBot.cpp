@@ -74,6 +74,8 @@ namespace Kilosim
         // Utility attributes/variables
         // Previous position (current position curr_pos is public for aggregators)
         Pos prev_pos;
+        // Where the robot is going (used by move_toward_target)
+        Pos target_pos;
 
         uint8_t m_state = INIT;
 
@@ -82,9 +84,6 @@ namespace Kilosim
             move(1, 1);
             set_led(100, 0, 0);
             curr_pos = get_pos();
-
-            // Initialize map
-            // TODO: Get/Set map size and fill with -1 (best equivalent to np.nan)
         };
 
         void loop()
@@ -92,7 +91,6 @@ namespace Kilosim
             // Update positions
             prev_pos = curr_pos;
             curr_pos = get_pos();
-            // std::cout << prev_pos[0] << curr_pos[0] << std::endl;
 
             if (m_state == INIT)
             {
@@ -105,8 +103,9 @@ namespace Kilosim
                     std::vector<double> tmp_vel = {
                         start_interval * cos(start_angle),
                         start_interval * sin(start_angle)};
-                    Pos target_pos = {2 * tmp_vel[0], 2 * tmp_vel[1]};
+                    target_pos = {2 * tmp_vel[0], 2 * tmp_vel[1]};
                     set_pso_path(target_pos, tmp_vel, start_interval);
+                    target_pos = m_path_to_target[0]; // target is last position in path
                 }
                 else if (get_tick() >= start_interval || min_val < end_val)
                 {
@@ -122,7 +121,6 @@ namespace Kilosim
             }
 
             // Call every loop
-            // move_toward_target();
             // prune_rx_table();
             // set_color_by_val();
             // send_msg();
@@ -148,6 +146,44 @@ namespace Kilosim
         // TODO: Add comm_criteria
 
         //----------------------------------------------------------------------
+        // MOVEMENT
+        //----------------------------------------------------------------------
+
+        void move_toward_target()
+        {
+            // Use the internal m_path_to_target to determine the robot's next step
+            bool use_path = true; // In future, could use alternative
+            if (curr_pos == target_pos)
+            {
+                // At target -- don't move
+                move(0, 0);
+            }
+            else
+            {
+                Pos pos_diff;
+                if (m_path_to_target.size() != 0)
+                {
+                    // Use the path if one exists
+                    Pos next_pos = m_path_to_target.back();
+                    m_path_to_target.pop_back();
+                    pos_diff = {next_pos.x - curr_pos.x,
+                                next_pos.y - curr_pos.y};
+                }
+                else
+                {
+                    // If no path, move in direction of target
+                    pos_diff = {target_pos.x - curr_pos.x,
+                                target_pos.y - curr_pos.y};
+                }
+                // Hacky(ish) way of getting the sign as -1/0/+1
+                // See: https://stackoverflow.com/a/1903975/2552873
+                std::cout << (pos_diff.x > 0) - (pos_diff.x < 0) << ", " << (pos_diff.y > 0) - (pos_diff.y < 0) << std::endl;
+                move((pos_diff.x > 0) - (pos_diff.x < 0),
+                     (pos_diff.y > 0) - (pos_diff.y < 0));
+            }
+        }
+
+        //----------------------------------------------------------------------
         // PATHS
         //----------------------------------------------------------------------
 
@@ -159,31 +195,14 @@ namespace Kilosim
             {
                 path_len = step_interval;
             }
-            std::cout << target.x << ", " << target.y << std::endl;
             // Set the initial path
             set_path(curr_pos.x, curr_pos.y, target.x, target.y);
 
             // Terminate unused length of the path
             m_path_to_target.erase(m_path_to_target.begin(), m_path_to_target.end() - path_len);
 
-            std::cout << path_len << std::endl;
-
-            printf("Original Path:\n");
-            for (auto i = 0; i < m_path_to_target.size(); i++)
-            {
-                std::cout << m_path_to_target[i].x << ", " << m_path_to_target[i].y << std::endl;
-            }
-            printf("\n");
-
             // When path hits the edge of the arena, flip the line using the edge as a mirror
             std::vector<int> flips = reflect_path();
-
-            printf("Final Path:\n");
-            for (auto i = 0; i < m_path_to_target.size(); i++)
-            {
-                std::cout << m_path_to_target[i].x << ", " << m_path_to_target[i].y << std::endl;
-            }
-            printf("\n");
 
             double vel_magnitude = sqrt(pow(velocity[0], 2) + pow(velocity[1], 2));
             for (auto i = 0; i < 2; i++)
@@ -248,8 +267,6 @@ namespace Kilosim
                     }
                 }
             }
-
-            std::cout << pos.x << "," << pos.y << " -> " << vpos[0] << "," << vpos[1] << std::endl;
 
             return {vpos[0], vpos[1], flip_count[0], flip_count[1]};
         }

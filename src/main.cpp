@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
         // printf("stepping\n");
         viewer.draw();
         world.step();
-        sleep(2);
+        sleep(1);
     }
 
     printf("Finished");
