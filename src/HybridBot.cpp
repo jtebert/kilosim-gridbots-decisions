@@ -43,9 +43,17 @@ namespace Kilosim
         double pso_self_weight; // 0.0
         // Constant collective/group cognition (weight)
         double pso_group_weight; // 0.0
+        // Current PSO velocity (for next step)
+        // TODO: Starting PSO velocity might be set by parameters
+        std::vector<double> pso_velocity = {uniform_rand_real(-10, 10),
+                                            uniform_rand_real(-10, 10)};
         // Maximum allowed magnitude of the PSO internal velocity (per tick?)
         // TODO: Not sure about the magnitude of this max_speed (self.max_pso_vel)
         double pso_max_speed; // 25
+
+        // GRADIENT DESCENT parameters
+        double gradient_weight;
+
         // Current (starting) angle and velocity
         double start_angle = uniform_rand_real(5 * PI / 180, 85 * PI / 180);
 
@@ -115,6 +123,14 @@ namespace Kilosim
             }
             else if (m_state == DO_PSO)
             {
+                std::map<Pos, double> pos_samples = sample_around();
+                map_samples(pos_samples);
+                update_mins(pos_samples);
+                int tick = get_tick();
+                if (tick % step_interval == 1)
+                {
+                    // TODO: PSO here
+                }
             }
             else if (m_state == DECIDED)
             {
@@ -144,6 +160,55 @@ namespace Kilosim
         };
 
         // TODO: Add comm_criteria
+
+        //----------------------------------------------------------------------
+        // PSO
+        //----------------------------------------------------------------------
+
+        std::vector<double> velocity_update(std::map<Pos, double> samples)
+        {
+            // Do an update of (PSO + gradient descent)
+            // returns the new velocity AND updates target position (target_pos)
+
+            // PSO:
+            // For each axis (x,y):
+            // velocity(t+1) = inertia * velocity(t) +
+            //                 p_weight * rand(t) + (p_best-pos(t)) +
+            //                 g_weight * rand(t) + (g_best-pos(t))
+            // pos(t+1) = pos(t) + velocity(t+1)
+
+            std::vector<int> local_min_loc;
+            int tmp_min_val = 99999;
+            for (auto const &s : samples)
+            {
+                if (s.second < tmp_min_val)
+                {
+                    local_min_loc = {s.first.x, s.first.y};
+                }
+            }
+
+            std::vector<double> new_vel = {0, 0};
+            Pos new_pos = {0, 0};
+            // Convert to vectors for
+            std::vector<int> v_obs_min_loc = {obs_min_loc.x, obs_min_loc.y};
+            std::vector<int> v_min_loc = {min_loc.x, min_loc.y};
+            std::vector<int> v_curr_pos = {curr_pos.x, curr_pos.y};
+
+            // Compute PSo
+            for (auto i = 0; i < 2; i++)
+            {
+                // TODO: This is PSO + GD. Use a different function for Boids
+                double inertia = pso_inertia + pso_velocity[i];
+                double p_term = pso_self_weight * uniform_rand_real(0, 1) * (v_obs_min_loc[i] - v_curr_pos[i]);
+                double g_term = pso_group_weight * uniform_rand_real(0, 1) * (v_min_loc[i] - v_curr_pos[i]);
+                double gradient = gradient_weight * uniform_rand_real(0, 1) * (local_min_loc[i] - v_curr_pos[i]);
+                new_vel[i] = inertia + p_term + g_term + gradient;
+            }
+
+            // TODO: Normalize velocity here?
+
+            // TO BE FINISHED........
+        }
 
         //----------------------------------------------------------------------
         // MOVEMENT
