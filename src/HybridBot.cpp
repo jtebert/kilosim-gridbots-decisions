@@ -31,7 +31,7 @@ namespace Kilosim
         // Every how many ticks to update the PSO target/velocity
         int step_interval;
         // Time to wait before doing first PSO update, so they spread out at start
-        int start_interval;
+        int start_interval = 10;
 
         // Threshold for ending (declaring target found)
         int end_val = 0;
@@ -100,7 +100,7 @@ namespace Kilosim
                 map_samples(pos_samples);
                 update_mins(pos_samples);
                 // Set the velocity on the first take (angling away from origin)
-                if (get_tick() == 0)
+                if (get_tick() == 1)
                 {
                     std::vector<double> tmp_vel = {
                         start_interval * cos(start_angle),
@@ -112,7 +112,7 @@ namespace Kilosim
                 {
                     m_state = DO_PSO;
                 }
-                print_map();
+                // print_map();
             }
             else if (m_state == DO_PSO)
             {
@@ -148,22 +148,43 @@ namespace Kilosim
         // TODO: Add comm_criteria
 
         //----------------------------------------------------------------------
-        // GENERALLY USEFUL FUNCTIONS
+        // PATHS
         //----------------------------------------------------------------------
 
         std::vector<double> set_pso_path(Pos target, std::vector<double> velocity, int path_len = 0)
         {
             // use set_path (straight line path), but then adapt to do reflections
             // and terminate to number of steps in interval
-            if (path_len = 0)
+            if (path_len == 0)
             {
                 path_len = step_interval;
             }
+            std::cout << target.x << ", " << target.y << std::endl;
             // Set the initial path
             set_path(curr_pos.x, curr_pos.y, target.x, target.y);
+
             // Terminate unused length of the path
-            m_path_to_target.resize(path_len);
+            m_path_to_target.erase(m_path_to_target.begin(), m_path_to_target.end() - path_len);
+
+            std::cout << path_len << std::endl;
+
+            printf("Original Path:\n");
+            for (auto i = 0; i < m_path_to_target.size(); i++)
+            {
+                std::cout << m_path_to_target[i].x << ", " << m_path_to_target[i].y << std::endl;
+            }
+            printf("\n");
+
+            // When path hits the edge of the arena, flip the line using the edge as a mirror
             std::vector<int> flips = reflect_path();
+
+            printf("Final Path:\n");
+            for (auto i = 0; i < m_path_to_target.size(); i++)
+            {
+                std::cout << m_path_to_target[i].x << ", " << m_path_to_target[i].y << std::endl;
+            }
+            printf("\n");
+
             double vel_magnitude = sqrt(pow(velocity[0], 2) + pow(velocity[1], 2));
             for (auto i = 0; i < 2; i++)
             {
@@ -178,8 +199,64 @@ namespace Kilosim
                     velocity[i] *= pso_max_speed / vel_magnitude;
                 }
             }
+
             return velocity;
         }
+
+        std::vector<int> reflect_path()
+        {
+            // Flip the m_path_to_target wherever it hits the edge of the arena
+            std::reverse(m_path_to_target.begin(), m_path_to_target.end());
+            std::vector<int> old_flips = {0, 0};
+            std::vector<int> flip_count = {0, 0};
+            for (auto i = 0; i < m_path_to_target.size(); i++)
+            {
+                Pos p = m_path_to_target[i];
+                std::vector<int> pos_and_flips = _flip_pos(p);
+                m_path_to_target[i] = {pos_and_flips[0], pos_and_flips[1]};
+                std::vector<int> new_flips = {pos_and_flips[3], pos_and_flips[4]};
+                flip_count = {flip_count[0] + new_flips[0] - old_flips[0],
+                              flip_count[1] + new_flips[1] - old_flips[1]};
+                old_flips = new_flips;
+            }
+            std::reverse(m_path_to_target.begin(), m_path_to_target.end());
+            return flip_count;
+        }
+
+        std::vector<int> _flip_pos(Pos pos)
+        {
+            // Flip (mirror) a position if it crosses a boundary of the arena
+            std::vector<int> grid_dim = {m_arena_grid_width, m_arena_grid_height};
+            std::vector<int> vpos = {pos.x, pos.y};
+            // Reflect the point over the boundary
+            std::vector<int> flip_count = {0, 0}; // flips over x and y
+            // Check each axis
+            for (auto i = 0; i < 2; i++)
+            {
+                // Keep flipping until it's within the bounds
+                while (vpos[i] < 0 || vpos[i] >= grid_dim[i])
+                {
+                    if (vpos[i] < 0)
+                    {
+                        vpos[i] = -vpos[i];
+                        flip_count[i] = 1;
+                    }
+                    else if (vpos[i] >= grid_dim[i])
+                    {
+                        // (d-1)-(x-(d-1))
+                        vpos[i] = 2 * grid_dim[i] - vpos[i] - 2;
+                    }
+                }
+            }
+
+            std::cout << pos.x << "," << pos.y << " -> " << vpos[0] << "," << vpos[1] << std::endl;
+
+            return {vpos[0], vpos[1], flip_count[0], flip_count[1]};
+        }
+
+        //----------------------------------------------------------------------
+        // MAPS
+        //----------------------------------------------------------------------
 
         void map_samples(std::map<Pos, double> samples)
         {
@@ -213,52 +290,6 @@ namespace Kilosim
                     }
                 }
             }
-        }
-
-        //----------------------------------------------------------------------
-        // UTILITY FUNCTIONS
-        //----------------------------------------------------------------------
-
-        std::vector<int> reflect_path()
-        {
-            // Flip the m_path_to_target wherever it hits the edge of the arena
-            std::reverse(m_path_to_target.begin(), m_path_to_target.end());
-            std::vector<int> old_flips = {0, 0};
-            std::vector<int> flip_count = {0, 0};
-            for (auto i = 0; i < m_path_to_target.size(); i++)
-            {
-                Pos p = m_path_to_target[i];
-                std::vector<int> pos_and_flips = _flip_pos(p);
-                m_path_to_target[i] = {pos_and_flips[0], pos_and_flips[1]};
-                std::vector<int> new_flips = {pos_and_flips[3], pos_and_flips[4]};
-                flip_count = {flip_count[0] + new_flips[0] - old_flips[0],
-                              flip_count[1] + new_flips[1] - old_flips[1]};
-                old_flips = new_flips;
-            }
-            std::reverse(m_path_to_target.begin(), m_path_to_target.end());
-            return flip_count;
-        }
-
-        std::vector<int> _flip_pos(Pos pos)
-        {
-            std::vector<int> grid_dim = {m_arena_grid_width, m_arena_grid_height};
-            std::vector<int> vpos = {pos.x, pos.y};
-            // Reflect the point over the boundary
-            std::vector<int> flip_count = {0, 0}; // flips over x and y
-            // Check each axis
-            for (auto i = 0; i < 2; i++)
-            {
-                if (vpos[i] < 0)
-                {
-                    vpos[i] = -vpos[i];
-                    flip_count[i] = 1;
-                }
-                else if (vpos[i] > grid_dim[i])
-                {
-                    vpos[i] = 2 * grid_dim[i] - vpos[i] - 2;
-                }
-            }
-            return {vpos[0], vpos[1], flip_count[0], flip_count[1]};
         }
 
         void print_map()
