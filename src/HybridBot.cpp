@@ -29,12 +29,9 @@ namespace Kilosim
         // (Particularly parameters from external config files)
 
         // Every how many ticks to update the PSO target/velocity
-        int step_interval;
+        int step_interval = 10;
         // Time to wait before doing first PSO update, so they spread out at start
         int start_interval = 10;
-
-        // Threshold for ending (declaring target found)
-        int end_val = 0;
 
         // PSO Parameters (set by main function)
         // Inertia (omega) from 0-1(ish)
@@ -54,8 +51,12 @@ namespace Kilosim
         // GRADIENT DESCENT parameters
         double gradient_weight;
 
-        // Current (starting) angle and velocity
-        double start_angle = uniform_rand_real(5 * PI / 180, 85 * PI / 180);
+        // DECISION-MAKING parameters
+        std::string end_condition = "value"; // or "time"
+        // Threshold for ending (declaring target found)
+        // For "value": decision if min_val is <= end_val, decision is made
+        // For "time": decision if get_tick() >= end_val
+        int end_val = 0;
 
         // Data values
         // Minimum value (global/collective) and its location
@@ -80,6 +81,8 @@ namespace Kilosim
         static const uint8_t DECIDED = 2;
 
         // Utility attributes/variables
+        // Current (starting) angle and velocity
+        double start_angle = uniform_rand_real(5 * PI / 180, 85 * PI / 180);
         // Previous position (current position curr_pos is public for aggregators)
         Pos prev_pos;
         // Where the robot is going (used by move_toward_target)
@@ -118,8 +121,8 @@ namespace Kilosim
                 else if (get_tick() >= start_interval || min_val < end_val)
                 {
                     m_state = DO_PSO;
+                    printf("init finished\n");
                 }
-                // print_map();
             }
             else if (m_state == DO_PSO)
             {
@@ -129,11 +132,20 @@ namespace Kilosim
                 int tick = get_tick();
                 if (tick % step_interval == 1)
                 {
-                    // TODO: PSO here
+                    std::vector<double> new_pos_vel = velocity_update(pos_samples);
+                    target_pos = {new_pos_vel[0], new_pos_vel[1]};
+                    pso_velocity = {new_pos_vel[2], new_pos_vel[3]};
+                    set_pso_path(target_pos, pso_velocity);
+                }
+                if (is_finished())
+                {
+                    m_state = DECIDED;
+                    printf("decision finished\n");
                 }
             }
             else if (m_state == DECIDED)
             {
+                // printf("decided...\n");
             }
 
             // Call every loop
@@ -188,13 +200,13 @@ namespace Kilosim
             }
 
             std::vector<double> new_vel = {0, 0};
-            Pos new_pos = {0, 0};
+            std::vector<int> new_pos = {0, 0};
             // Convert to vectors for
             std::vector<int> v_obs_min_loc = {obs_min_loc.x, obs_min_loc.y};
             std::vector<int> v_min_loc = {min_loc.x, min_loc.y};
             std::vector<int> v_curr_pos = {curr_pos.x, curr_pos.y};
 
-            // Compute PSo
+            // Compute PSO
             for (auto i = 0; i < 2; i++)
             {
                 // TODO: This is PSO + GD. Use a different function for Boids
@@ -202,51 +214,58 @@ namespace Kilosim
                 double p_term = pso_self_weight * uniform_rand_real(0, 1) * (v_obs_min_loc[i] - v_curr_pos[i]);
                 double g_term = pso_group_weight * uniform_rand_real(0, 1) * (v_min_loc[i] - v_curr_pos[i]);
                 double gradient = gradient_weight * uniform_rand_real(0, 1) * (local_min_loc[i] - v_curr_pos[i]);
+                // Velocity is used to determine target position and next PSO update
                 new_vel[i] = inertia + p_term + g_term + gradient;
+                // This is the new target position to draw a straight (target)
+                // line to before the next update
+                new_pos[i] = v_curr_pos[i] + new_vel[i] * step_interval;
             }
 
             // TODO: Normalize velocity here?
 
-            // TO BE FINISHED........
+            return {new_pos[0], new_pos[1], new_vel[0], new_vel[1]};
         }
 
         //----------------------------------------------------------------------
         // MOVEMENT
         //----------------------------------------------------------------------
 
-        void move_toward_target()
-        {
-            // Use the internal m_path_to_target to determine the robot's next step
-            bool use_path = true; // In future, could use alternative
-            if (curr_pos == target_pos)
-            {
-                // At target -- don't move
-                move(0, 0);
-            }
-            else
-            {
-                Pos pos_diff;
-                if (m_path_to_target.size() != 0)
-                {
-                    // Use the path if one exists
-                    Pos next_pos = m_path_to_target.back();
-                    m_path_to_target.pop_back();
-                    pos_diff = {next_pos.x - curr_pos.x,
-                                next_pos.y - curr_pos.y};
-                }
-                else
-                {
-                    // If no path, move in direction of target
-                    pos_diff = {target_pos.x - curr_pos.x,
-                                target_pos.y - curr_pos.y};
-                }
-                // Hacky(ish) way of getting the sign as -1/0/+1
-                // See: https://stackoverflow.com/a/1903975/2552873
-                std::cout << (pos_diff.x > 0) - (pos_diff.x < 0) << ", " << (pos_diff.y > 0) - (pos_diff.y < 0) << std::endl;
-                move((pos_diff.x > 0) - (pos_diff.x < 0),
-                     (pos_diff.y > 0) - (pos_diff.y < 0));
-            }
-        }
+        // I think that this functionality is already taken care of by the position update in
+        // kilosim-gridbots (Gridbot.robot_compute_next_step)
+
+        // void move_toward_target()
+        // {
+        //     // Use the internal m_path_to_target to determine the robot's next step
+        //     bool use_path = true; // In future, could use alternative
+        //     if (curr_pos == target_pos)
+        //     {
+        //         // At target -- don't move
+        //         move(0, 0);
+        //     }
+        //     else
+        //     {
+        //         Pos pos_diff;
+        //         if (m_path_to_target.size() != 0)
+        //         {
+        //             // Use the path if one exists
+        //             Pos next_pos = m_path_to_target.back();
+        //             m_path_to_target.pop_back();
+        //             pos_diff = {next_pos.x - curr_pos.x,
+        //                         next_pos.y - curr_pos.y};
+        //         }
+        //         else
+        //         {
+        //             // If no path, move in direction of target
+        //             pos_diff = {target_pos.x - curr_pos.x,
+        //                         target_pos.y - curr_pos.y};
+        //         }
+        //         // Hacky(ish) way of getting the sign as -1/0/+1
+        //         // See: https://stackoverflow.com/a/1903975/2552873
+        //         std::cout << (pos_diff.x > 0) - (pos_diff.x < 0) << ", " << (pos_diff.y > 0) - (pos_diff.y < 0) << std::endl;
+        //         move((pos_diff.x > 0) - (pos_diff.x < 0),
+        //              (pos_diff.y > 0) - (pos_diff.y < 0));
+        //     }
+        // }
 
         //----------------------------------------------------------------------
         // PATHS
@@ -391,6 +410,26 @@ namespace Kilosim
                 printf("\n"); // end row
             }
             printf("\n"); // end map block
+        }
+
+        //----------------------------------------------------------------------
+        // MISCELLANEOUS
+        //----------------------------------------------------------------------
+
+        bool is_finished()
+        {
+            if (end_condition == "time")
+            {
+                return get_tick() >= end_val;
+            }
+            else if (end_condition == "value")
+            {
+                return min_val <= end_val;
+            }
+            else
+            {
+                return false;
+            }
         }
 
     }; // end class

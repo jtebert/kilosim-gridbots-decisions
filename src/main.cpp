@@ -8,7 +8,7 @@ int main(int argc, char *argv[])
 {
     // Create 3m x 3m world (no background image, for now)
     Kilosim::World world(
-        80, 80, "../imgs/8x8-test.png" // World image
+        3840, 3840, "../imgs/img_oct=4_001.png" // World image
     );
 
     Kilosim::Viewer viewer(world, 1200);
@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
         // printf("stepping\n");
         viewer.draw();
         world.step();
-        sleep(1);
+        sleep(.1);
     }
 
     printf("Finished");
