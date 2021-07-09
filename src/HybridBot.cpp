@@ -29,7 +29,7 @@ namespace Kilosim
         // (Particularly parameters from external config files)
 
         // Every how many ticks to update the PSO target/velocity
-        int step_interval = 10;
+        int step_interval;
         // Time to wait before doing first PSO update, so they spread out at start
         int start_interval = 10;
 
@@ -56,7 +56,7 @@ namespace Kilosim
         // Threshold for ending (declaring target found)
         // For "value": decision if min_val is <= end_val, decision is made
         // For "time": decision if get_tick() >= end_val
-        int end_val = 0;
+        int end_val;
 
         // Data values
         // Minimum value (global/collective) and its location
@@ -199,6 +199,8 @@ namespace Kilosim
                 }
             }
 
+            std::cout << "Velocity before:" << pso_velocity[0] << "," << pso_velocity[1] << std::endl;
+
             std::vector<double> new_vel = {0, 0};
             std::vector<int> new_pos = {0, 0};
             // Convert to vectors for
@@ -220,6 +222,11 @@ namespace Kilosim
                 // line to before the next update
                 new_pos[i] = v_curr_pos[i] + new_vel[i] * step_interval;
             }
+
+            std::cout << "Velocity after:" << new_vel[0] << "," << new_vel[1] << std::endl;
+
+            std::cout << "Current pos:" << curr_pos.x << "," << curr_pos.y << std::endl;
+            std::cout << "Target pos:" << new_pos[0] << "," << new_pos[1] << std::endl;
 
             // TODO: Normalize velocity here?
 
