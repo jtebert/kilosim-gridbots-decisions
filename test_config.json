@@ -1,7 +1,7 @@
 {
     "start_trial": 1,
-    "num_trials": 10,
-    "trial_duration": 10000,
+    "num_trials": 1,
+    "trial_duration": 1000000,
     "img_dir": "../imgs",
     "env_octaves": 4,
     "world_grid_width": 384,
@@ -10,7 +10,7 @@
     "step_interval": 25,
     "end_condition": "value",
     "end_val": 4,
-    "pso_max_speed": 25,
+    "pso_max_speed": 2,
     "pso_inertia": 1.2,
     "pso_self_weight": 0.025,
     "pso_group_weight": 0.025,

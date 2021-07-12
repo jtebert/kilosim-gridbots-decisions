@@ -42,8 +42,8 @@ namespace Kilosim
         double pso_group_weight; // 0.0
         // Current PSO velocity (for next step)
         // TODO: Starting PSO velocity might be set by parameters
-        std::vector<double> pso_velocity = {uniform_rand_real(-10, 10),
-                                            uniform_rand_real(-10, 10)};
+        std::vector<double> pso_velocity = {uniform_rand_real(-1, 1),
+                                            uniform_rand_real(-1, 1)};
         // Maximum allowed magnitude of the PSO internal velocity (per tick?)
         // TODO: Not sure about the magnitude of this max_speed (self.max_pso_vel)
         double pso_max_speed; // 25
@@ -135,6 +135,7 @@ namespace Kilosim
                     std::vector<double> new_pos_vel = velocity_update(pos_samples);
                     target_pos = {new_pos_vel[0], new_pos_vel[1]};
                     pso_velocity = {new_pos_vel[2], new_pos_vel[3]};
+
                     set_pso_path(target_pos, pso_velocity);
                 }
                 if (is_finished())
@@ -199,8 +200,6 @@ namespace Kilosim
                 }
             }
 
-            std::cout << "Velocity before:" << pso_velocity[0] << "," << pso_velocity[1] << std::endl;
-
             std::vector<double> new_vel = {0, 0};
             std::vector<int> new_pos = {0, 0};
             // Convert to vectors for
@@ -223,12 +222,14 @@ namespace Kilosim
                 new_pos[i] = v_curr_pos[i] + new_vel[i] * step_interval;
             }
 
-            std::cout << "Velocity after:" << new_vel[0] << "," << new_vel[1] << std::endl;
-
-            std::cout << "Current pos:" << curr_pos.x << "," << curr_pos.y << std::endl;
-            std::cout << "Target pos:" << new_pos[0] << "," << new_pos[1] << std::endl;
-
             // TODO: Normalize velocity here?
+            double vel_magnitude = sqrt(pow(new_vel[0], 2) + pow(new_vel[1], 2));
+
+            if (vel_magnitude > pso_max_speed)
+            {
+                new_vel[0] *= pso_max_speed / vel_magnitude;
+                new_vel[1] *= pso_max_speed / vel_magnitude;
+            }
 
             return {new_pos[0], new_pos[1], new_vel[0], new_vel[1]};
         }
@@ -286,16 +287,21 @@ namespace Kilosim
             {
                 path_len = step_interval;
             }
+
             // Set the initial path
             set_path(curr_pos.x, curr_pos.y, target.x, target.y);
 
             // Terminate unused length of the path
-            m_path_to_target.erase(m_path_to_target.begin(), m_path_to_target.end() - path_len);
+            if (path_len < m_path_to_target.size())
+            {
+                // If the new path is longer than the target length, cut it short
+                m_path_to_target.erase(m_path_to_target.begin(), m_path_to_target.end() - path_len);
+                // If the new path is SHORTER, let it stay that length
+            }
 
             // When path hits the edge of the arena, flip the line using the edge as a mirror
             std::vector<int> flips = reflect_path();
 
-            double vel_magnitude = sqrt(pow(velocity[0], 2) + pow(velocity[1], 2));
             for (auto i = 0; i < 2; i++)
             {
                 // iterate over x,y
@@ -303,10 +309,6 @@ namespace Kilosim
                 if (dim_flips)
                 {
                     velocity[i] *= -1 * dim_flips;
-                }
-                if (abs(vel_magnitude) > pso_max_speed)
-                {
-                    velocity[i] *= pso_max_speed / vel_magnitude;
                 }
             }
 
@@ -390,6 +392,7 @@ namespace Kilosim
                     // Set as the minimum if it's lower than anything seen before
                     min_val = s.second;
                     min_loc = s.first;
+                    std::cout << min_loc.x << "," << min_loc.y << " (" << min_val << ")" << std::endl;
                     if (is_own_obs)
                     {
                         // If this came from own observations, set that too

@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
             // printf("stepping\n");
             viewer.draw();
             world.step();
-            sleep(.25);
+            usleep(5000); //.05s
         }
     }
 
