@@ -1,18 +1,20 @@
 {
     "start_trial": 1,
     "num_trials": 1,
-    "trial_duration": 1000000,
+    "trial_duration": 5000,
     "img_dir": "../imgs",
     "env_octaves": 4,
     "world_grid_width": 384,
     "world_grid_height": 384,
-    "num_robots": 1,
+    "num_robots": 100,
+    "comm_range": 8,
+    "rx_table_timeout": 100,
     "step_interval": 25,
     "end_condition": "value",
-    "end_val": 4,
+    "end_val": 100,
     "pso_max_speed": 2,
-    "pso_inertia": 1.2,
+    "pso_inertia": 0.8,
     "pso_self_weight": 0.025,
     "pso_group_weight": 0.025,
-    "gradient_weight": 10
+    "gradient_weight": 5
 }

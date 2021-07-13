@@ -24,3 +24,17 @@ From project root directory, run:
 ```shell
 ./bin/gridbots_decisions
 ```
+
+## Debugging
+
+To profile with `gprof` you need to run a different `cmake` command (from the build folder):
+
+```
+cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_FLAGS=-pg -DCMAKE_INSTALL_PREFIX=../ ..
+```
+
+This will generate a file called `gmon.out`. You can create an analysis with:
+
+```
+gprof gridbots_decisions gmon.out  > analysis.txt
+```

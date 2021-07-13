@@ -10,12 +10,21 @@
 
 #include <cmath>
 
-// Pseudo-booleans for convenience
-#define FALSE 0
-#define TRUE 1
-
 namespace Kilosim
 {
+
+    typedef struct neighbor_info_t
+    {
+        // one entry (row) in a table of observations/messages from neighbor robots
+        uint16_t id;
+        uint min_val;
+        uint min_loc_x;
+        uint min_loc_y;
+        // Pos curr_pos;
+        // std::vector<double> pso_velocity;
+        uint32_t tick_added;
+    } neighbor_info_t;
+
     class HybridBot : public Gridbot
     {
     public:
@@ -58,15 +67,19 @@ namespace Kilosim
         // For "time": decision if get_tick() >= end_val
         int end_val;
 
+        // MISCELLANEOUS
+        int num_neighbors;    // Used for making neighbor array table
+        int rx_table_timeout; // Time neighbor messages stay in table
+
         // Data values
         // Minimum value (global/collective) and its location
-        int min_val = 99999; // start higher than anything observable
+        uint min_val = 99999; // start higher than anything observable
         Pos min_loc;
         // Lowest value from OWN observations
-        int obs_min_val = 99999;
+        uint obs_min_val = 99999;
         Pos obs_min_loc;
         // Lowest value from RECEIVED messages
-        int rx_min_val = 99999;
+        uint rx_min_val = 99999;
         Pos rx_min_loc;
 
         // ---------------------------------------------------------------------
@@ -79,6 +92,7 @@ namespace Kilosim
         static const uint8_t INIT = 0;
         static const uint8_t DO_PSO = 1;
         static const uint8_t DECIDED = 2;
+        static const uint8_t HOME = 3;
 
         // Utility attributes/variables
         // Current (starting) angle and velocity
@@ -90,11 +104,15 @@ namespace Kilosim
 
         uint8_t m_state = INIT;
 
+        std::vector<neighbor_info_t> neighbor_table;
+
         void setup()
         {
             move(1, 1);
             set_led(100, 0, 0);
             curr_pos = get_pos();
+
+            initialize_neighbor_array();
         };
 
         void loop()
@@ -146,10 +164,30 @@ namespace Kilosim
             }
             else if (m_state == DECIDED)
             {
+                set_led(0, 100, 0);
                 // printf("decided...\n");
+                // Found a target; go home
+                // TODO: change to Boids
+                target_pos = {0, 0};
+                // velocity (={0,0}) doesn't matter here
+                // path_len just has to be longer that whatever it generates
+                set_pso_path(target_pos, {0, 0}, 1000);
+                if (curr_pos == target_pos)
+                {
+                    m_state = HOME;
+                    printf("Home\n");
+                }
+            }
+            else if (m_state == HOME)
+            {
+                // nothing to do
             }
 
             // Call every loop
+            // Process all messages in the queue since the last tick
+            process_msgs();
+            prune_neighbor_table();
+
             // prune_rx_table();
             // set_color_by_val();
             // send_msg();
@@ -172,7 +210,83 @@ namespace Kilosim
             // m_test++;
         };
 
-        // TODO: Add comm_criteria
+        //----------------------------------------------------------------------
+        // COMMUNICATION
+        //----------------------------------------------------------------------
+
+        void initialize_neighbor_array()
+        {
+            // Set up the neighbor array
+            neighbor_table.resize(num_neighbors);
+            for (auto i = 0; i < neighbor_table.size(); i++)
+            {
+                // Assigning all IDs to 0 indicates no robot in that row
+                // (otherwise random ID from memory allocation could make it a mess)
+                neighbor_table[i].id = 0;
+            }
+        }
+
+        void process_msgs()
+        {
+            // Process all messages since the last tick
+            // Add each one to the table
+            std::vector<json> new_msgs = get_msg();
+            for (auto i = 0; i < new_msgs.size(); i++)
+            {
+                json msg = new_msgs[i];
+                add_msg_to_table(msg);
+            }
+        }
+
+        void add_msg_to_table(json msg)
+        {
+            // TODO: Should probably invert this, because neighbor_table is longer to loop over
+            // than new_msgs list is
+            uint id = msg.at("id");
+            for (auto i = 0; i < neighbor_table.size(); i++)
+            {
+                if (neighbor_table[i].id == id)
+                {
+                    // Neighbor is already in the table
+                    // Update the value and stop looking
+                    neighbor_table[i].min_loc_x = msg.at("min_loc_x");
+                    neighbor_table[i].min_loc_y = msg.at("min_loc_y");
+                    neighbor_table[i].min_val = msg.at("min_val");
+                    neighbor_table[i].tick_added = msg.at("tick_added");
+                    break;
+                }
+            }
+        }
+
+        void prune_neighbor_table()
+        {
+            // Remove old messages, based on some fixed time since they were added
+            int curr_tick = get_tick();
+            for (auto i = 0; i < neighbor_table.size(); i++)
+            {
+
+                if (neighbor_table[i].tick_added + rx_table_timeout >= curr_tick)
+                {
+                    neighbor_table[i].id = 0;
+                }
+            }
+        }
+
+        // Send message (continuously)
+        // message_t *message_tx()
+        // {
+        //     Message should be changed/set by respective detection/observation function
+        //     if (is_feature_disseminating)
+        //     {
+        //         update_tx_message_data();
+        //         return &tx_message_data;
+        //     }
+
+        //     else
+        //     {
+        //         return NULL;
+        //     }
+        // }
 
         //----------------------------------------------------------------------
         // PSO
@@ -392,7 +506,7 @@ namespace Kilosim
                     // Set as the minimum if it's lower than anything seen before
                     min_val = s.second;
                     min_loc = s.first;
-                    std::cout << min_loc.x << "," << min_loc.y << " (" << min_val << ")" << std::endl;
+                    // std::cout << min_loc.x << "," << min_loc.y << " (" << min_val << ")" << std::endl;
                     if (is_own_obs)
                     {
                         // If this came from own observations, set that too

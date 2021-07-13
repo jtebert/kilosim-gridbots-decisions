@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
     const int world_height = (int)config.get("world_grid_height") * 10;
     const int num_robots = config.get("num_robots");
 
-    for (auto trial = start_trial; trial <= start_trial + num_trials; trial++)
+    for (auto trial = start_trial; trial < start_trial + num_trials; trial++)
     {
         std::string trial_str = std::to_string(trial);
         trial_str.insert(trial_str.begin(), 3 - trial_str.size(), '0');
@@ -56,6 +56,11 @@ int main(int argc, char *argv[])
             robots[n]->pso_self_weight = config.get("pso_self_weight");
             robots[n]->pso_group_weight = config.get("pso_group_weight");
             robots[n]->gradient_weight = config.get("gradient_weight");
+            // comm_range is used by comm_criteria to determine communication range
+            // In config, comm_range is in grid cells (as dimension)
+            robots[n]->comm_range = (int)config.get("comm_range") * 10;
+            robots[n]->num_neighbors = (int)config.get("num_robots") - 1;
+            robots[n]->rx_table_timeout = config.get("rx_table_timeout");
         }
 
         // robots[0]->set_path(10, 10, 12, 5);
@@ -68,12 +73,12 @@ int main(int argc, char *argv[])
         // world.check_validity();
 
         sleep(2);
-        while (world.get_time() < trial_duration * world.get_tick_rate())
+        while (world.get_time() < trial_duration / world.get_tick_rate())
         {
             // printf("stepping\n");
             viewer.draw();
             world.step();
-            usleep(5000); //.05s
+            // usleep(5000); //.05s
         }
     }
 
