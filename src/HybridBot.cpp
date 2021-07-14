@@ -40,7 +40,7 @@ namespace Kilosim
         // Every how many ticks to update the PSO target/velocity
         int step_interval;
         // Time to wait before doing first PSO update, so they spread out at start
-        int start_interval = 10;
+        int start_interval;
 
         // PSO Parameters (set by main function)
         // Inertia (omega) from 0-1(ish)
@@ -74,25 +74,41 @@ namespace Kilosim
         // Data values
         // Minimum value (global/collective) and its location
         uint min_val = 99999; // start higher than anything observable
-        Pos min_loc;
+        Pos min_loc = {-1, -1};
         // Lowest value from OWN observations
         uint obs_min_val = 99999;
-        Pos obs_min_loc;
+        Pos obs_min_loc = {-1, -1};
         // Lowest value from RECEIVED messages
         uint rx_min_val = 99999;
-        Pos rx_min_loc;
+        Pos rx_min_loc = {-1, -1};
 
         // ---------------------------------------------------------------------
 
         // Set up things used in common between all decision-making robots
         // TODO: Run setup (self.setup())
 
+        void print_neighbor_array()
+        {
+            printf("\n");
+            std::cout << "Own ID=" << id << "\tv=" << min_val << "\tstate=" << (int)m_state << "\t(t=" << get_tick() << ")" << std::endl;
+            std::cout << "ID\tMinX\tMinY\tMinVal\tTickAdded" << std::endl;
+            for (auto &n : neighbor_table)
+            {
+                if (n.id != 0)
+                {
+                    std::cout << n.id << "\t" << n.min_loc_x << "\t" << n.min_loc_y << "\t" << n.min_val << "\t" << n.tick_added << std::endl;
+                }
+            }
+        }
+
     private:
         // States
         static const uint8_t INIT = 0;
-        static const uint8_t DO_PSO = 1;
-        static const uint8_t DECIDED = 2;
-        static const uint8_t HOME = 3;
+        static const uint8_t SPREAD = 1;
+        static const uint8_t DO_PSO = 2;
+        static const uint8_t DECIDED = 3;
+        static const uint8_t GO_HOME = 4;
+        static const uint8_t HOME = 5;
 
         // Utility attributes/variables
         // Current (starting) angle and velocity
@@ -111,8 +127,6 @@ namespace Kilosim
             move(1, 1);
             set_led(100, 0, 0);
             curr_pos = get_pos();
-
-            initialize_neighbor_array();
         };
 
         void loop()
@@ -123,31 +137,37 @@ namespace Kilosim
 
             if (m_state == INIT)
             {
+                // Set the velocity on the first take (angling away from origin)
+                initialize_neighbor_array();
+                std::vector<double> tmp_vel = {
+                    start_interval * cos(start_angle),
+                    start_interval * sin(start_angle)};
+                target_pos = {2 * tmp_vel[0], 2 * tmp_vel[1]};
+                set_pso_path(target_pos, tmp_vel, start_interval);
+                target_pos = m_path_to_target[0]; // target is last position in path
+                m_state = SPREAD;
+            }
+            else if (m_state == SPREAD)
+            {
+                // Spread away from the origin before doing PSO
                 std::map<Pos, double> pos_samples = sample_around();
                 map_samples(pos_samples);
                 update_mins(pos_samples);
-                // Set the velocity on the first take (angling away from origin)
-                if (get_tick() == 1)
-                {
-                    std::vector<double> tmp_vel = {
-                        start_interval * cos(start_angle),
-                        start_interval * sin(start_angle)};
-                    target_pos = {2 * tmp_vel[0], 2 * tmp_vel[1]};
-                    set_pso_path(target_pos, tmp_vel, start_interval);
-                    target_pos = m_path_to_target[0]; // target is last position in path
-                }
-                else if (get_tick() >= start_interval || min_val < end_val)
+                if (get_tick() >= start_interval || min_val < end_val)
                 {
                     m_state = DO_PSO;
-                    printf("init finished\n");
                 }
             }
             else if (m_state == DO_PSO)
             {
+                int tick = get_tick();
+                // if (tick % 2 == 0)
+                // {
+                // set_led(0, 100, 0);
+                // }
                 std::map<Pos, double> pos_samples = sample_around();
                 map_samples(pos_samples);
                 update_mins(pos_samples);
-                int tick = get_tick();
                 if (tick % step_interval == 1)
                 {
                     std::vector<double> new_pos_vel = velocity_update(pos_samples);
@@ -159,14 +179,21 @@ namespace Kilosim
                 if (is_finished())
                 {
                     m_state = DECIDED;
-                    printf("decision finished\n");
+                    // printf("decision finished\n");
                 }
             }
             else if (m_state == DECIDED)
             {
-                set_led(0, 100, 0);
-                // printf("decided...\n");
-                // Found a target; go home
+                // print_neighbor_array();
+                // Share the decision with neighbors (aka do Boids)
+                if (all_neighbors_decided())
+                {
+                    m_state = GO_HOME;
+                }
+            }
+            else if (m_state == GO_HOME)
+            {
+                // Everyone knows about the target; go home
                 // TODO: change to Boids
                 target_pos = {0, 0};
                 // velocity (={0,0}) doesn't matter here
@@ -175,7 +202,6 @@ namespace Kilosim
                 if (curr_pos == target_pos)
                 {
                     m_state = HOME;
-                    printf("Home\n");
                 }
             }
             else if (m_state == HOME)
@@ -187,6 +213,7 @@ namespace Kilosim
             // Process all messages in the queue since the last tick
             process_msgs();
             prune_neighbor_table();
+            update_send_msg();
 
             // prune_rx_table();
             // set_color_by_val();
@@ -231,41 +258,84 @@ namespace Kilosim
             // Process all messages since the last tick
             // Add each one to the table
             std::vector<json> new_msgs = get_msg();
-            for (auto i = 0; i < new_msgs.size(); i++)
+
+            bool was_added = false;
+            int ind_to_fill = -1;
+            int curr_tick = get_tick();
+            // if (new_msgs.size() > 0)
+            // {
+            //     set_led(0, 0, 100);
+            // }
+            // else
+            // {
+            //     set_led(0, 100, 0);
+            // }
+            for (auto m = 0; m < new_msgs.size(); m++)
             {
-                json msg = new_msgs[i];
-                add_msg_to_table(msg);
-            }
+                json msg = new_msgs[m];
+                if (!msg.is_null())
+                {
+                    was_added = false;
+                    for (auto i = 0; i < neighbor_table.size(); i++)
+                    {
+                        if (neighbor_table[i].id == msg.at("id"))
+                        {
+                            // printf("UPDATING message\n");
+                            // Neighbor is already in the table
+                            // Update the value and stop looking
+                            add_msg(msg, i);
+                            was_added = true;
+                            break;
+                            // Setting the ID to 0 indicates later that this message has been processed
+                            // new_msgs[m]["id"] = 0;
+                        }
+                        else if (neighbor_table[i].id == 0)
+                        {
+                            // This is an empty slot that can be used for inserting new elements
+                            ind_to_fill = i;
+                        }
+                    } // end neighbor_table loop
+                    if (!was_added)
+                    {
+                        // printf("ADDING message\n");
+                        // This wasn't updating an existing value in the table.
+                        // Instead, add it at ind_to_fill
+                        // NOTE: ind_to_fill should always be set if this step is reached, because the
+                        // size of the table matches the number of neighbors
+                        add_msg(msg, ind_to_fill);
+                    }
+                }
+            } // end msg loop
         }
 
-        void add_msg_to_table(json msg)
+        void add_msg(json msg, int ind)
         {
-            // TODO: Should probably invert this, because neighbor_table is longer to loop over
-            // than new_msgs list is
-            uint id = msg.at("id");
-            for (auto i = 0; i < neighbor_table.size(); i++)
+            // Add a message to the neighbor table and check if it gives a new min value/location
+            // NOTE: ind is the index of the neighbor in the neighbor table
+            neighbor_table[ind].id = msg.at("id");
+            neighbor_table[ind].min_loc_x = msg.at("min_loc_x");
+            neighbor_table[ind].min_loc_y = msg.at("min_loc_y");
+            neighbor_table[ind].min_val = msg.at("min_val");
+            neighbor_table[ind].tick_added = get_tick();
+            // Check if the new message is a new min value
+            if (msg.at("min_val") < min_val)
             {
-                if (neighbor_table[i].id == id)
-                {
-                    // Neighbor is already in the table
-                    // Update the value and stop looking
-                    neighbor_table[i].min_loc_x = msg.at("min_loc_x");
-                    neighbor_table[i].min_loc_y = msg.at("min_loc_y");
-                    neighbor_table[i].min_val = msg.at("min_val");
-                    neighbor_table[i].tick_added = msg.at("tick_added");
-                    break;
-                }
+                min_val = msg.at("min_val");
+                min_loc = {msg.at("min_loc_x"), msg.at("min_loc_y")};
+                rx_min_val = msg.at("min_val");
+                rx_min_loc = {msg.at("min_loc_x"), msg.at("min_loc_y")};
             }
         }
 
         void prune_neighbor_table()
         {
             // Remove old messages, based on some fixed time since they were added
+            // (Removal means setting the ID to 0, so it's marked as empty/ignored)
             int curr_tick = get_tick();
             for (auto i = 0; i < neighbor_table.size(); i++)
             {
 
-                if (neighbor_table[i].tick_added + rx_table_timeout >= curr_tick)
+                if (neighbor_table[i].tick_added + rx_table_timeout <= curr_tick)
                 {
                     neighbor_table[i].id = 0;
                 }
@@ -273,20 +343,20 @@ namespace Kilosim
         }
 
         // Send message (continuously)
-        // message_t *message_tx()
-        // {
-        //     Message should be changed/set by respective detection/observation function
-        //     if (is_feature_disseminating)
-        //     {
-        //         update_tx_message_data();
-        //         return &tx_message_data;
-        //     }
-
-        //     else
-        //     {
-        //         return NULL;
-        //     }
-        // }
+        void update_send_msg()
+        {
+            // Only set the message if a value has been observed (i.e. not max)
+            if (min_val < 99999)
+            {
+                // Create message to send
+                json msg;
+                msg["id"] = id;
+                msg["min_loc_x"] = min_loc.x;
+                msg["min_loc_y"] = min_loc.y;
+                msg["min_val"] = min_val;
+                send_msg(msg);
+            }
+        }
 
         //----------------------------------------------------------------------
         // PSO
@@ -349,45 +419,47 @@ namespace Kilosim
         }
 
         //----------------------------------------------------------------------
-        // MOVEMENT
+        // POST-DECISION
         //----------------------------------------------------------------------
 
-        // I think that this functionality is already taken care of by the position update in
-        // kilosim-gridbots (Gridbot.robot_compute_next_step)
+        // Compute whether all the robots in the neighbor_table have found a min_val below the threshold
+        bool all_neighbors_decided()
+        {
+            // std::cout << "neighbor count: " << neighbor_table.size() << std::endl;
+            for (auto const &n : neighbor_table)
+            {
+                if (n.id != 0)
+                {
+                    if (n.min_val > end_val)
+                    {
+                        // There's a robots that has not found a min_val below the threshold
+                        // so we can stop searching. Don't
+                        return false;
+                    }
+                }
+            }
+            // We haven't found any undecided neighbors
+            return true;
+        }
 
-        // void move_toward_target()
-        // {
-        //     // Use the internal m_path_to_target to determine the robot's next step
-        //     bool use_path = true; // In future, could use alternative
-        //     if (curr_pos == target_pos)
-        //     {
-        //         // At target -- don't move
-        //         move(0, 0);
-        //     }
-        //     else
-        //     {
-        //         Pos pos_diff;
-        //         if (m_path_to_target.size() != 0)
-        //         {
-        //             // Use the path if one exists
-        //             Pos next_pos = m_path_to_target.back();
-        //             m_path_to_target.pop_back();
-        //             pos_diff = {next_pos.x - curr_pos.x,
-        //                         next_pos.y - curr_pos.y};
-        //         }
-        //         else
-        //         {
-        //             // If no path, move in direction of target
-        //             pos_diff = {target_pos.x - curr_pos.x,
-        //                         target_pos.y - curr_pos.y};
-        //         }
-        //         // Hacky(ish) way of getting the sign as -1/0/+1
-        //         // See: https://stackoverflow.com/a/1903975/2552873
-        //         std::cout << (pos_diff.x > 0) - (pos_diff.x < 0) << ", " << (pos_diff.y > 0) - (pos_diff.y < 0) << std::endl;
-        //         move((pos_diff.x > 0) - (pos_diff.x < 0),
-        //              (pos_diff.y > 0) - (pos_diff.y < 0));
-        //     }
-        // }
+        bool alt_all_neighbors_decided()
+        {
+            int neighbor_count = 0;
+            bool any_undecided = false;
+            for (auto const &n : neighbor_table)
+            {
+                if (n.id != 0)
+                {
+                    neighbor_count++;
+                    if (n.min_val > end_val)
+                    {
+                        any_undecided = true;
+                    }
+                }
+            }
+            // std::cout << "neighbor count: " << neighbor_count << std::endl;
+            return any_undecided;
+        }
 
         //----------------------------------------------------------------------
         // PATHS

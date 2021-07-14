@@ -47,8 +47,9 @@ int main(int argc, char *argv[])
         {
             robots[n] = new Kilosim::HybridBot();
             world.add_robot(robots[n]);
-            robots[n]->robot_init(n, n, 0);
+            robots[n]->robot_init(0, 0, 0);
             robots[n]->step_interval = config.get("step_interval");
+            robots[n]->start_interval = (int)config.get("step_interval") * 2;
             robots[n]->end_condition = config.get("end_condition");
             robots[n]->end_val = config.get("end_val");
             robots[n]->pso_max_speed = config.get("pso_max_speed");
@@ -59,7 +60,7 @@ int main(int argc, char *argv[])
             // comm_range is used by comm_criteria to determine communication range
             // In config, comm_range is in grid cells (as dimension)
             robots[n]->comm_range = (int)config.get("comm_range") * 10;
-            robots[n]->num_neighbors = (int)config.get("num_robots") - 1;
+            robots[n]->num_neighbors = num_robots - 1;
             robots[n]->rx_table_timeout = config.get("rx_table_timeout");
         }
 
@@ -78,7 +79,9 @@ int main(int argc, char *argv[])
             // printf("stepping\n");
             viewer.draw();
             world.step();
+            robots[0]->print_neighbor_array();
             // usleep(5000); //.05s
+            // usleep(1000000); //.05s
         }
     }
 
