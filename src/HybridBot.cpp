@@ -20,7 +20,10 @@ namespace Kilosim
         uint min_val;
         uint min_loc_x;
         uint min_loc_y;
-        // Pos curr_pos;
+        uint curr_pos_x;
+        uint curr_pos_y;
+        double curr_vel_x;
+        double curr_vel_y;
         // std::vector<double> pso_velocity;
         uint32_t tick_added;
     } neighbor_info_t;
@@ -39,6 +42,7 @@ namespace Kilosim
 
         // Every how many ticks to update the PSO target/velocity
         int step_interval;
+        int boids_step_interval = 10;
         // Time to wait before doing first PSO update, so they spread out at start
         int start_interval;
 
@@ -51,8 +55,8 @@ namespace Kilosim
         double pso_group_weight; // 0.0
         // Current PSO velocity (for next step)
         // TODO: Starting PSO velocity might be set by parameters
-        std::vector<double> pso_velocity = {uniform_rand_real(-1, 1),
-                                            uniform_rand_real(-1, 1)};
+        std::vector<double> velocity = {uniform_rand_real(-1, 1),
+                                        uniform_rand_real(-1, 1)};
         // Maximum allowed magnitude of the PSO internal velocity (per tick?)
         // TODO: Not sure about the magnitude of this max_speed (self.max_pso_vel)
         double pso_max_speed; // 25
@@ -135,6 +139,12 @@ namespace Kilosim
             prev_pos = curr_pos;
             curr_pos = get_pos();
 
+            // Call every loop
+            // Process all messages in the queue since the last tick
+            std::map<Pos, std::vector<double>> neighbor_pos_vel = process_msgs();
+            prune_neighbor_table();
+            update_send_msg();
+
             if (m_state == INIT)
             {
                 // Set the velocity on the first take (angling away from origin)
@@ -170,31 +180,40 @@ namespace Kilosim
                 update_mins(pos_samples);
                 if (tick % step_interval == 1)
                 {
-                    std::vector<double> new_pos_vel = velocity_update(pos_samples);
+                    std::vector<double> new_pos_vel = pso_velocity_update(pos_samples);
                     target_pos = {new_pos_vel[0], new_pos_vel[1]};
-                    pso_velocity = {new_pos_vel[2], new_pos_vel[3]};
-
-                    set_pso_path(target_pos, pso_velocity);
+                    velocity = {new_pos_vel[2], new_pos_vel[3]};
+                    set_pso_path(target_pos, velocity);
                 }
                 if (is_finished())
                 {
                     m_state = DECIDED;
-                    // printf("decision finished\n");
+                    printf("decision finished\n");
                 }
             }
             else if (m_state == DECIDED)
             {
-                // print_neighbor_array();
                 // Share the decision with neighbors (aka do Boids)
+                std::map<Pos, double> pos_samples = sample_around();
+                map_samples(pos_samples);
+                update_mins(pos_samples);
+                if ((int)get_tick() % boids_step_interval == 0)
+                {
+                    // Boids!
+                    std::vector<double> new_pos_vel = boids_velocity_update(neighbor_pos_vel);
+                    target_pos = {new_pos_vel[0], new_pos_vel[1]};
+                    velocity = {new_pos_vel[2], new_pos_vel[3]};
+                    set_pso_path(target_pos, velocity);
+                }
                 if (all_neighbors_decided())
                 {
                     m_state = GO_HOME;
+                    set_led(100, 0, 0);
                 }
             }
             else if (m_state == GO_HOME)
             {
                 // Everyone knows about the target; go home
-                // TODO: change to Boids
                 target_pos = {0, 0};
                 // velocity (={0,0}) doesn't matter here
                 // path_len just has to be longer that whatever it generates
@@ -208,12 +227,6 @@ namespace Kilosim
             {
                 // nothing to do
             }
-
-            // Call every loop
-            // Process all messages in the queue since the last tick
-            process_msgs();
-            prune_neighbor_table();
-            update_send_msg();
 
             // prune_rx_table();
             // set_color_by_val();
@@ -253,28 +266,28 @@ namespace Kilosim
             }
         }
 
-        void process_msgs()
+        std::map<Pos, std::vector<double>> process_msgs()
         {
             // Process all messages since the last tick
-            // Add each one to the table
+            // Add each one to the neighbor table
+            // RETURNS: map<Pos, Pos> of {position, velocity} of all neighbors heard from in this tick
+            // (this is used for Boids velocity updates)
+
             std::vector<json> new_msgs = get_msg();
 
             bool was_added = false;
             int ind_to_fill = -1;
             int curr_tick = get_tick();
-            // if (new_msgs.size() > 0)
-            // {
-            //     set_led(0, 0, 100);
-            // }
-            // else
-            // {
-            //     set_led(0, 100, 0);
-            // }
+            std::map<Pos, std::vector<double>> neighbor_pos_vel;
+
             for (auto m = 0; m < new_msgs.size(); m++)
             {
                 json msg = new_msgs[m];
                 if (!msg.is_null())
                 {
+                    // Put into return map (position + velocity)
+                    neighbor_pos_vel.insert({{msg.at("curr_pos_x"), msg.at("curr_pos_y")},
+                                             {msg.at("curr_vel_x"), msg.at("curr_vel_y")}});
                     was_added = false;
                     for (auto i = 0; i < neighbor_table.size(); i++)
                     {
@@ -306,6 +319,7 @@ namespace Kilosim
                     }
                 }
             } // end msg loop
+            return neighbor_pos_vel;
         }
 
         void add_msg(json msg, int ind)
@@ -354,15 +368,19 @@ namespace Kilosim
                 msg["min_loc_x"] = min_loc.x;
                 msg["min_loc_y"] = min_loc.y;
                 msg["min_val"] = min_val;
+                msg["curr_pos_x"] = curr_pos.x;
+                msg["curr_pos_y"] = curr_pos.y;
+                msg["curr_vel_x"] = velocity[0];
+                msg["curr_vel_y"] = velocity[1];
                 send_msg(msg);
             }
         }
 
         //----------------------------------------------------------------------
-        // PSO
+        // MOVEMENT
         //----------------------------------------------------------------------
 
-        std::vector<double> velocity_update(std::map<Pos, double> samples)
+        std::vector<double> pso_velocity_update(std::map<Pos, double> samples)
         {
             // Do an update of (PSO + gradient descent)
             // returns the new velocity AND updates target position (target_pos)
@@ -385,7 +403,7 @@ namespace Kilosim
             }
 
             std::vector<double> new_vel = {0, 0};
-            std::vector<int> new_pos = {0, 0};
+            std::vector<double> new_pos = {0, 0};
             // Convert to vectors for
             std::vector<int> v_obs_min_loc = {obs_min_loc.x, obs_min_loc.y};
             std::vector<int> v_min_loc = {min_loc.x, min_loc.y};
@@ -394,8 +412,7 @@ namespace Kilosim
             // Compute PSO
             for (auto i = 0; i < 2; i++)
             {
-                // TODO: This is PSO + GD. Use a different function for Boids
-                double inertia = pso_inertia + pso_velocity[i];
+                double inertia = pso_inertia + velocity[i];
                 double p_term = pso_self_weight * uniform_rand_real(0, 1) * (v_obs_min_loc[i] - v_curr_pos[i]);
                 double g_term = pso_group_weight * uniform_rand_real(0, 1) * (v_min_loc[i] - v_curr_pos[i]);
                 double gradient = gradient_weight * uniform_rand_real(0, 1) * (local_min_loc[i] - v_curr_pos[i]);
@@ -409,13 +426,132 @@ namespace Kilosim
             // TODO: Normalize velocity here?
             double vel_magnitude = sqrt(pow(new_vel[0], 2) + pow(new_vel[1], 2));
 
-            if (vel_magnitude > pso_max_speed)
-            {
-                new_vel[0] *= pso_max_speed / vel_magnitude;
-                new_vel[1] *= pso_max_speed / vel_magnitude;
-            }
+            new_vel = normalize_velocity(new_vel);
 
             return {new_pos[0], new_pos[1], new_vel[0], new_vel[1]};
+        }
+
+        std::vector<double> boids_velocity_update(std::map<Pos, std::vector<double>> neighbor_pos_vel)
+        {
+            // This is Boids-based flocking algorithm for the robots to used once they've made a
+            // decision. At this point, they'll spread their information fastest if they
+            // maintain a communication network while spreading out as much as possible.
+            // IN: Each pair is a (pos, vel) pair for a robot heard from in this tick (ie currently
+            // in communication range)
+            // RETURN: The new target position AND velocity to apply to the robot
+            uint neighbor_count = neighbor_pos_vel.size();
+
+            std::vector<double> new_vel(2);
+            if (neighbor_count > 0)
+            {
+                double avg_vel_x = 0;
+                double avg_vel_y = 0;
+                // LENNARD-JONES FORCE FOR COHESION AND SEPARATION
+                // double mass = .0000001;
+                std::vector<double> lj_acc = lennard_jones_potential(neighbor_pos_vel, comm_range * .75);
+                // lj_acc[0] *= mass;
+                // lj_acc[1] *= mass;
+                lj_acc = normalize_velocity(lj_acc);
+
+                // ALIGNMENT: Compute the average velocity of all neighbors
+                // TODO: See if this velocity needs normalization
+                for (auto const &s : neighbor_pos_vel)
+                {
+                    avg_vel_x += s.second[0];
+                    avg_vel_y += s.second[1];
+                }
+                avg_vel_x /= neighbor_count;
+                avg_vel_y /= neighbor_count;
+                // Align steering vector
+                std::vector<double> align_steering = {avg_vel_x - velocity[0],
+                                                      avg_vel_y - velocity[1]};
+                align_steering = normalize_velocity(align_steering);
+
+                // double acceleration_x = lj_acc[0] + align_steering[0];
+                // double acceleration_y = lj_acc[1] + align_steering[1];
+                // double acceleration_x = align_steering[0];
+                // double acceleration_y = align_steering[1];
+                new_vel = {2 * velocity[0] + lj_acc[0] + align_steering[0],
+                           2 * velocity[1] + lj_acc[1] + align_steering[1]};
+                new_vel = normalize_velocity(new_vel);
+
+                std::cout << "[" << neighbor_count << "]\tVelocity: ("
+                          << velocity[0] << "," << velocity[1] << ")\t+ ("
+                          << lj_acc[0] << "," << lj_acc[1] << ")\t+ ("
+                          << align_steering[0] << "," << align_steering[1] << ")\t= ("
+                          << new_vel[0] << "," << new_vel[1] << ")" << std::endl;
+            }
+            else
+            {
+                // If no neighbors, set a random velocity
+                double angle = uniform_rand_real(0, 2 * PI);
+                // convert angle to unit vector
+                // new_vel = {cos(angle), sin(angle)};
+                new_vel = {uniform_rand_real(-1, 1), uniform_rand_real(-1, 1)};
+                // std::cout << "---\t"
+                //           << "Velocity: " << new_vel[0] << "," << new_vel[1] << std::endl;
+            }
+
+            // This is equlivant to setting a step_interval of 1 (ie update this every tick)
+            std::vector<double> target = {curr_pos.x + velocity[0] * boids_step_interval,
+                                          curr_pos.y + velocity[1] * boids_step_interval};
+
+            // std::cout << "Target: " << target[0] << ", " << target[1] << std::endl;
+            // std::cout << "Velocity: " << new_vel[0] << ", " << new_vel[1] << std::endl;
+
+            return {target[0], target[1], new_vel[0], new_vel[1]};
+        }
+
+        std::vector<double> lennard_jones_potential(std::map<Pos, std::vector<double>> neighbor_pos_vel, double target_dist)
+        {
+            // lj_force derives the Lennard-Jones potential and force based on the relative
+            // positions of all neighbors and the desired target_dist to neighbors. The force is a
+            // gain factor, attracting or repelling a robot from a neighbor. The center is a point
+            // in space toward which the robot will move, based on the sum of all weighted neighbor
+            // positions.
+            // Get the sum of all weighted neighbor positions
+            std::vector<Pos> relative_pos(neighbor_pos_vel.size());
+            std::vector<double> dist(neighbor_pos_vel.size());
+            auto i = 0;
+            for (auto const &n : neighbor_pos_vel)
+            {
+                relative_pos[i] = {n.first.x - curr_pos.x,
+                                   n.first.y - curr_pos.y};
+                dist[i] = sqrt(pow(relative_pos[i].x, 2) + pow(relative_pos[i].y, 2));
+            }
+
+            // (a=12, b=6) is standard for Lennard-Jones potential. The ratio has to be 2:1
+            // lower numbers mean less aggressive repulsion (eg a=6, b=3)
+            int a = 6;
+            int b = 3;
+            int epsilon = 100;                  // depth of the potential well, V_LJ(target_dist) = epsilon
+            int gamma = 1;                      // force gain
+            double r_const = 1.1 * target_dist; // target distance from neighbors
+            double center_x = 0;
+            double center_y = 0;
+            for (auto i = 0; i < neighbor_pos_vel.size(); i++)
+            {
+                double r = std::min(r_const, dist[i]);
+                r = std::max(r, 1.0); // minimum distance is 1 (not on same cell)
+                double f_lj = -gamma * epsilon / r * (a * pow(target_dist / r, a) - 2 * b * pow(target_dist / r, b));
+                center_x += f_lj * relative_pos[i].x;
+                center_y += f_lj * relative_pos[i].y;
+            }
+            center_x /= neighbor_pos_vel.size();
+            center_y /= neighbor_pos_vel.size();
+            return {center_x, center_y};
+        }
+
+        std::vector<double> normalize_velocity(std::vector<double> vel)
+        {
+            // Normalize the velocity to the max_speed
+            double speed = sqrt(pow(vel[0], 2) + pow(vel[1], 2));
+            if (speed > pso_max_speed)
+            {
+                vel[0] *= pso_max_speed / speed;
+                vel[1] *= pso_max_speed / speed;
+            }
+            return vel;
         }
 
         //----------------------------------------------------------------------
