@@ -38,8 +38,10 @@ int main(int argc, char *argv[])
         Kilosim::World world(
             world_width, world_height, img_filename // World image
         );
+        world.set_comm_rate(1);
 
         Kilosim::Viewer viewer(world, 1200);
+        viewer.set_show_network(true);
 
         // Create robots and place in world
         std::vector<Kilosim::HybridBot *> robots(num_robots);
@@ -79,9 +81,9 @@ int main(int argc, char *argv[])
             // printf("stepping\n");
             viewer.draw();
             world.step();
-            robots[0]->print_neighbor_array();
+            // robots[0]->print_neighbor_array();
             // usleep(5000); //.05s
-            // usleep(1000000); //.05s
+            // sleep(1);
         }
     }
 

@@ -182,8 +182,7 @@ namespace Kilosim
                 {
                     std::vector<double> new_pos_vel = pso_velocity_update(pos_samples);
                     target_pos = {new_pos_vel[0], new_pos_vel[1]};
-                    velocity = {new_pos_vel[2], new_pos_vel[3]};
-                    set_pso_path(target_pos, velocity);
+                    velocity = set_pso_path(target_pos, {new_pos_vel[2], new_pos_vel[3]});
                 }
                 if (is_finished())
                 {
@@ -202,8 +201,7 @@ namespace Kilosim
                     // Boids!
                     std::vector<double> new_pos_vel = boids_velocity_update(neighbor_pos_vel);
                     target_pos = {new_pos_vel[0], new_pos_vel[1]};
-                    velocity = {new_pos_vel[2], new_pos_vel[3]};
-                    set_pso_path(target_pos, velocity);
+                    velocity = set_pso_path(target_pos, {new_pos_vel[2], new_pos_vel[3]});
                 }
                 if (all_neighbors_decided())
                 {
@@ -471,8 +469,8 @@ namespace Kilosim
                 // double acceleration_y = lj_acc[1] + align_steering[1];
                 // double acceleration_x = align_steering[0];
                 // double acceleration_y = align_steering[1];
-                new_vel = {2 * velocity[0] + lj_acc[0] + align_steering[0],
-                           2 * velocity[1] + lj_acc[1] + align_steering[1]};
+                new_vel = {velocity[0] + lj_acc[0] + align_steering[0],
+                           velocity[1] + lj_acc[1] + align_steering[1]};
                 new_vel = normalize_velocity(new_vel);
 
                 std::cout << "[" << neighbor_count << "]\tVelocity: ("
@@ -485,11 +483,15 @@ namespace Kilosim
             {
                 // If no neighbors, set a random velocity
                 double angle = uniform_rand_real(0, 2 * PI);
-                // convert angle to unit vector
                 // new_vel = {cos(angle), sin(angle)};
-                new_vel = {uniform_rand_real(-1, 1), uniform_rand_real(-1, 1)};
-                // std::cout << "---\t"
-                //           << "Velocity: " << new_vel[0] << "," << new_vel[1] << std::endl;
+                new_vel = velocity; // DON'T CHANGE DIRECTION
+                // convert angle to unit vector
+                // new_vel = {velocity[0] + cos(angle),
+                //            velocity[1] + sin(angle)};
+                // new_vel = normalize_velocity(new_vel);
+                // new_vel = {uniform_rand_real(-1, 1), uniform_rand_real(-1, 1)};
+                std::cout << "---\t"
+                          << "Velocity: " << new_vel[0] << "," << new_vel[1] << std::endl;
             }
 
             // This is equlivant to setting a step_interval of 1 (ie update this every tick)
@@ -522,11 +524,12 @@ namespace Kilosim
 
             // (a=12, b=6) is standard for Lennard-Jones potential. The ratio has to be 2:1
             // lower numbers mean less aggressive repulsion (eg a=6, b=3)
-            int a = 6;
-            int b = 3;
-            int epsilon = 100;                  // depth of the potential well, V_LJ(target_dist) = epsilon
-            int gamma = 1;                      // force gain
-            double r_const = 1.1 * target_dist; // target distance from neighbors
+            int a = 12;
+            int b = 6;
+            int epsilon = 100; // depth of the potential well, V_LJ(target_dist) = epsilon
+            int gamma = 1;     // force gain
+            // double r_const = .5 * target_dist; // target distance from neighbors
+            double r_const = 3;
             double center_x = 0;
             double center_y = 0;
             for (auto i = 0; i < neighbor_pos_vel.size(); i++)
@@ -601,7 +604,7 @@ namespace Kilosim
         // PATHS
         //----------------------------------------------------------------------
 
-        std::vector<double> set_pso_path(Pos target, std::vector<double> velocity, int path_len = 0)
+        std::vector<double> set_pso_path(Pos target, std::vector<double> vel, int path_len = 0)
         {
             // use set_path (straight line path), but then adapt to do reflections
             // and terminate to number of steps in interval
@@ -630,25 +633,27 @@ namespace Kilosim
                 int dim_flips = flips[i];
                 if (dim_flips)
                 {
-                    velocity[i] *= -1 * dim_flips;
+                    vel[i] *= -1 * dim_flips;
                 }
             }
 
-            return velocity;
+            return vel;
         }
 
         std::vector<int> reflect_path()
         {
             // Flip the m_path_to_target wherever it hits the edge of the arena
             std::reverse(m_path_to_target.begin(), m_path_to_target.end());
+            // flips from all previous positions
             std::vector<int> old_flips = {0, 0};
+            // flips to get to current position
             std::vector<int> flip_count = {0, 0};
             for (auto i = 0; i < m_path_to_target.size(); i++)
             {
                 Pos p = m_path_to_target[i];
-                std::vector<int> pos_and_flips = _flip_pos(p);
+                std::vector<int> pos_and_flips = flip_pos(p);
                 m_path_to_target[i] = {pos_and_flips[0], pos_and_flips[1]};
-                std::vector<int> new_flips = {pos_and_flips[3], pos_and_flips[4]};
+                std::vector<int> new_flips = {pos_and_flips[2], pos_and_flips[3]};
                 flip_count = {flip_count[0] + new_flips[0] - old_flips[0],
                               flip_count[1] + new_flips[1] - old_flips[1]};
                 old_flips = new_flips;
@@ -657,7 +662,7 @@ namespace Kilosim
             return flip_count;
         }
 
-        std::vector<int> _flip_pos(Pos pos)
+        std::vector<int> flip_pos(Pos pos)
         {
             // Flip (mirror) a position if it crosses a boundary of the arena
             std::vector<int> grid_dim = {m_arena_grid_width, m_arena_grid_height};
@@ -673,12 +678,13 @@ namespace Kilosim
                     if (vpos[i] < 0)
                     {
                         vpos[i] = -vpos[i];
-                        flip_count[i] = 1;
+                        flip_count[i] += 1;
                     }
                     else if (vpos[i] >= grid_dim[i])
                     {
                         // (d-1)-(x-(d-1))
                         vpos[i] = 2 * grid_dim[i] - vpos[i] - 2;
+                        flip_count[i] += 1;
                     }
                 }
             }

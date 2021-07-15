@@ -24,5 +24,9 @@ add_executable(gridbots_decisions
 # Link the kilosim library
 target_link_libraries(gridbots_decisions PRIVATE kilosim kilosim_gridbots)
 
+target_compile_options(gridbots_decisions PRIVATE -pg -march=native -Wall -Wextra)
+# target_compile_options(gridbots_decisions PRIVATE -pg -O0 -march=native -Wall -Wextra)
+
+
 # Install to bin/ directory
 install(TARGETS gridbots_decisions RUNTIME DESTINATION ${CMAKE_SOURCE_DIR}/bin OPTIONAL)
