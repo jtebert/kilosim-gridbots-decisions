@@ -35,6 +35,8 @@ namespace Kilosim
         // TODO: Add aggregators
         Pos curr_pos;
 
+        uint8_t m_state;
+
         // ---------------------------------------------------------------------
 
         // TODO: Add anything here that needs to be set by main (ie externally)
@@ -86,6 +88,9 @@ namespace Kilosim
         uint rx_min_val = 99999;
         Pos rx_min_loc = {-1, -1};
 
+        // Home position is whether the robot goes to at end (and probably where it starts)
+        Pos home_pos = {0, 0};
+
         // ---------------------------------------------------------------------
 
         // Set up things used in common between all decision-making robots
@@ -105,14 +110,21 @@ namespace Kilosim
             }
         }
 
+        // Check if the robot has returned home (ie full simulation is complete for this run)
+        bool is_home()
+        {
+            return m_state == HOME;
+        }
+
     private:
         // States
         static const uint8_t INIT = 0;
         static const uint8_t SPREAD = 1;
         static const uint8_t DO_PSO = 2;
         static const uint8_t DECIDED = 3;
-        static const uint8_t GO_HOME = 4;
-        static const uint8_t HOME = 5;
+        static const uint8_t SEND_HOME = 4;
+        static const uint8_t GO_HOME = 5;
+        static const uint8_t HOME = 6;
 
         // Utility attributes/variables
         // Current (starting) angle and velocity
@@ -122,8 +134,6 @@ namespace Kilosim
         // Where the robot is going (used by move_toward_target)
         Pos target_pos;
 
-        uint8_t m_state = INIT;
-
         std::vector<neighbor_info_t> neighbor_table;
 
         void setup()
@@ -131,6 +141,8 @@ namespace Kilosim
             move(1, 1);
             set_led(100, 0, 0);
             curr_pos = get_pos();
+
+            m_state = INIT;
         };
 
         void loop()
@@ -163,7 +175,11 @@ namespace Kilosim
                 std::map<Pos, double> pos_samples = sample_around();
                 map_samples(pos_samples);
                 update_mins(pos_samples);
-                if (get_tick() >= start_interval || min_val < end_val)
+                if (is_time_to_go_home())
+                {
+                    m_state = SEND_HOME;
+                }
+                else if (get_tick() >= start_interval || min_val < end_val)
                 {
                     m_state = DO_PSO;
                 }
@@ -184,7 +200,11 @@ namespace Kilosim
                     target_pos = {new_pos_vel[0], new_pos_vel[1]};
                     velocity = set_pso_path(target_pos, {new_pos_vel[2], new_pos_vel[3]});
                 }
-                if (is_finished())
+                if (is_time_to_go_home())
+                {
+                    m_state = SEND_HOME;
+                }
+                else if (is_finished())
                 {
                     m_state = DECIDED;
                     printf("decision finished\n");
@@ -203,19 +223,24 @@ namespace Kilosim
                     target_pos = {new_pos_vel[0], new_pos_vel[1]};
                     velocity = set_pso_path(target_pos, {new_pos_vel[2], new_pos_vel[3]});
                 }
+                // This state is only used when end_val != time, so don't need to check is_time_to_go_home()
                 if (all_neighbors_decided())
                 {
-                    m_state = GO_HOME;
-                    set_led(100, 0, 0);
+                    m_state = SEND_HOME;
                 }
+            }
+            else if (m_state == SEND_HOME)
+            {
+                // Prepape for the GO_HOME state
+                target_pos = home_pos;
+                set_pso_path(target_pos, {0, 0}, 1000);
+                m_state = GO_HOME;
             }
             else if (m_state == GO_HOME)
             {
                 // Everyone knows about the target; go home
-                target_pos = {0, 0};
                 // velocity (={0,0}) doesn't matter here
                 // path_len just has to be longer that whatever it generates
-                set_pso_path(target_pos, {0, 0}, 1000);
                 if (curr_pos == target_pos)
                 {
                     m_state = HOME;
@@ -223,10 +248,10 @@ namespace Kilosim
             }
             else if (m_state == HOME)
             {
-                // nothing to do
+                // Nothing to do
+                // But this lets the is_home() function know that the robot is totally done.
             }
 
-            // prune_rx_table();
             // set_color_by_val();
             // send_msg();
 
@@ -442,17 +467,18 @@ namespace Kilosim
             std::vector<double> new_vel(2);
             if (neighbor_count > 0)
             {
-                double avg_vel_x = 0;
-                double avg_vel_y = 0;
+
                 // LENNARD-JONES FORCE FOR COHESION AND SEPARATION
                 // double mass = .0000001;
-                std::vector<double> lj_acc = lennard_jones_potential(neighbor_pos_vel, comm_range * .75);
+                std::vector<double> lj_acc = lennard_jones_potential(neighbor_pos_vel, comm_range * .5);
                 // lj_acc[0] *= mass;
                 // lj_acc[1] *= mass;
                 lj_acc = normalize_velocity(lj_acc);
 
                 // ALIGNMENT: Compute the average velocity of all neighbors
                 // TODO: See if this velocity needs normalization
+                double avg_vel_x = 0;
+                double avg_vel_y = 0;
                 for (auto const &s : neighbor_pos_vel)
                 {
                     avg_vel_x += s.second[0];
@@ -465,12 +491,11 @@ namespace Kilosim
                                                       avg_vel_y - velocity[1]};
                 align_steering = normalize_velocity(align_steering);
 
-                // double acceleration_x = lj_acc[0] + align_steering[0];
-                // double acceleration_y = lj_acc[1] + align_steering[1];
-                // double acceleration_x = align_steering[0];
-                // double acceleration_y = align_steering[1];
-                new_vel = {velocity[0] + lj_acc[0] + align_steering[0],
-                           velocity[1] + lj_acc[1] + align_steering[1]};
+                // new_vel = {velocity[0] + lj_acc[0] + align_steering[0],
+                //            velocity[1] + lj_acc[1] + align_steering[1]};
+                // new_vel = {align_steering[0],
+                //            align_steering[1]};
+                new_vel = lj_acc;
                 new_vel = normalize_velocity(new_vel);
 
                 std::cout << "[" << neighbor_count << "]\tVelocity: ("
@@ -517,8 +542,8 @@ namespace Kilosim
             auto i = 0;
             for (auto const &n : neighbor_pos_vel)
             {
-                relative_pos[i] = {n.first.x - curr_pos.x,
-                                   n.first.y - curr_pos.y};
+                relative_pos[i] = {curr_pos.x - n.first.x,
+                                   curr_pos.y - n.first.y};
                 dist[i] = sqrt(pow(relative_pos[i].x, 2) + pow(relative_pos[i].y, 2));
             }
 
@@ -564,40 +589,26 @@ namespace Kilosim
         // Compute whether all the robots in the neighbor_table have found a min_val below the threshold
         bool all_neighbors_decided()
         {
-            // std::cout << "neighbor count: " << neighbor_table.size() << std::endl;
-            for (auto const &n : neighbor_table)
+            if (end_condition == "value")
             {
-                if (n.id != 0)
+                // std::cout << "neighbor count: " << neighbor_table.size() << std::endl;
+                for (auto const &n : neighbor_table)
                 {
-                    if (n.min_val > end_val)
+                    if (n.id != 0)
                     {
-                        // There's a robots that has not found a min_val below the threshold
-                        // so we can stop searching. Don't
-                        return false;
+                        if (n.min_val > end_val)
+                        {
+                            // There's a robots that has not found a min_val below the threshold
+                            // so we can stop searching. Don't
+                            return false;
+                        }
                     }
                 }
+                // We haven't found any undecided neighbors
+                return true;
             }
-            // We haven't found any undecided neighbors
-            return true;
-        }
-
-        bool alt_all_neighbors_decided()
-        {
-            int neighbor_count = 0;
-            bool any_undecided = false;
-            for (auto const &n : neighbor_table)
-            {
-                if (n.id != 0)
-                {
-                    neighbor_count++;
-                    if (n.min_val > end_val)
-                    {
-                        any_undecided = true;
-                    }
-                }
-            }
-            // std::cout << "neighbor count: " << neighbor_count << std::endl;
-            return any_undecided;
+            // irrelevant if using time-based end condition
+            return false;
         }
 
         //----------------------------------------------------------------------
@@ -768,6 +779,32 @@ namespace Kilosim
             {
                 return false;
             }
+        }
+
+        bool is_time_to_go_home()
+        {
+            // Check if it's time to head home.
+            // This is used only when the end_condition is "time".
+            // Checks if there's enough time left to head home before time is up.
+            if (end_condition == "time")
+            {
+                // Get the time left to go home
+                int time_left = end_val - get_tick();
+
+                // Otherwise, need to do more checks (ie full path)
+                std::vector<Pos> path_home = create_line(curr_pos.x, curr_pos.y,
+                                                         home_pos.x, home_pos.y);
+                int path_home_len = path_home.size();
+
+                if (path_home_len >= time_left)
+                {
+                    // If there's enough time left, go home!
+                    return true;
+                }
+            }
+            // We're not doing time-based end condition
+            // OR keep going for remaining time
+            return false;
         }
 
     }; // end class

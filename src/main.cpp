@@ -5,6 +5,29 @@
 
 #include <unistd.h>
 
+// Check if all of the robots in the world are finished
+// (either they all found the source and returned home, or the time limit expired)
+bool is_finished(Kilosim::World &world, std::vector<Kilosim::HybridBot *> robots, std::string end_condition, int end_val)
+{
+    if (end_condition == "time")
+    {
+        return world.get_time() * world.get_tick_rate() >= end_val;
+    }
+    else if (end_condition == "value")
+    {
+        for (auto robot : robots)
+        {
+            if (!robot->is_home())
+            {
+                // At least one robot is not home (ie finished)
+                return false;
+            }
+        }
+    }
+    // Else no robots that *didn't* meet the end condition
+    return true;
+}
+
 int main(int argc, char *argv[])
 {
     // Get config file name
@@ -41,7 +64,7 @@ int main(int argc, char *argv[])
         world.set_comm_rate(1);
 
         Kilosim::Viewer viewer(world, 1200);
-        viewer.set_show_network(true);
+        // viewer.set_show_network(true);
 
         // Create robots and place in world
         std::vector<Kilosim::HybridBot *> robots(num_robots);
@@ -76,7 +99,8 @@ int main(int argc, char *argv[])
         // world.check_validity();
 
         sleep(2);
-        while (world.get_time() < trial_duration / world.get_tick_rate())
+        // while (world.get_time() < trial_duration * world.get_tick_rate())
+        while (!is_finished(world, robots, config.get("end_condition"), config.get("end_val")))
         {
             // printf("stepping\n");
             viewer.draw();
@@ -85,6 +109,7 @@ int main(int argc, char *argv[])
             // usleep(5000); //.05s
             // sleep(1);
         }
+        std::cout << "Finished trial " << trial << "\tt=" << world.get_time() * world.get_tick_rate() << std::endl;
     }
 
     printf("Finished");
