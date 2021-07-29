@@ -20,10 +20,10 @@ namespace Kilosim
         uint min_val;
         uint min_loc_x;
         uint min_loc_y;
-        uint curr_pos_x;
-        uint curr_pos_y;
-        double curr_vel_x;
-        double curr_vel_y;
+        // uint curr_pos_x;
+        // uint curr_pos_y;
+        // double curr_vel_x;
+        // double curr_vel_y;
         // std::vector<double> pso_velocity;
         uint32_t tick_added;
     } neighbor_info_t;
@@ -44,7 +44,7 @@ namespace Kilosim
 
         // Every how many ticks to update the PSO target/velocity
         int step_interval;
-        int boids_step_interval = 10;
+        int boids_step_interval;
         // Time to wait before doing first PSO update, so they spread out at start
         int start_interval;
 
@@ -67,7 +67,7 @@ namespace Kilosim
         double gradient_weight;
 
         // DECISION-MAKING parameters
-        std::string end_condition = "value"; // or "time"
+        std::string end_condition; // "value" or "time"
         // Threshold for ending (declaring target found)
         // For "value": decision if min_val is <= end_val, decision is made
         // For "time": decision if get_tick() >= end_val
@@ -151,11 +151,8 @@ namespace Kilosim
             prev_pos = curr_pos;
             curr_pos = get_pos();
 
-            // Call every loop
             // Process all messages in the queue since the last tick
-            std::map<Pos, std::vector<double>> neighbor_pos_vel = process_msgs();
-            prune_neighbor_table();
-            update_send_msg();
+            std::map<Pos, std::vector<double>> neighbor_pos_vel;
 
             if (m_state == INIT)
             {
@@ -172,6 +169,7 @@ namespace Kilosim
             else if (m_state == SPREAD)
             {
                 // Spread away from the origin before doing PSO
+                neighbor_pos_vel = process_msgs();
                 std::map<Pos, double> pos_samples = sample_around();
                 map_samples(pos_samples);
                 update_mins(pos_samples);
@@ -187,10 +185,7 @@ namespace Kilosim
             else if (m_state == DO_PSO)
             {
                 int tick = get_tick();
-                // if (tick % 2 == 0)
-                // {
-                // set_led(0, 100, 0);
-                // }
+                neighbor_pos_vel = process_msgs();
                 std::map<Pos, double> pos_samples = sample_around();
                 map_samples(pos_samples);
                 update_mins(pos_samples);
@@ -208,11 +203,13 @@ namespace Kilosim
                 {
                     m_state = DECIDED;
                     printf("decision finished\n");
+                    set_led(0, 100, 0);
                 }
             }
             else if (m_state == DECIDED)
             {
                 // Share the decision with neighbors (aka do Boids)
+                neighbor_pos_vel = process_msgs();
                 std::map<Pos, double> pos_samples = sample_around();
                 map_samples(pos_samples);
                 update_mins(pos_samples);
@@ -241,6 +238,7 @@ namespace Kilosim
                 // Everyone knows about the target; go home
                 // velocity (={0,0}) doesn't matter here
                 // path_len just has to be longer that whatever it generates
+                get_msg(); // clear the queue
                 if (curr_pos == target_pos)
                 {
                     m_state = HOME;
@@ -250,27 +248,11 @@ namespace Kilosim
             {
                 // Nothing to do
                 // But this lets the is_home() function know that the robot is totally done.
+                get_msg(); // clear the queue
             }
 
-            // set_color_by_val();
-            // send_msg();
-
-            // // std::cout << m_grid_x << ", " << m_grid_y << std::endl;
-            // if (m_test <= 8)
-            // {
-            //     std::cout << "\n"
-            //               << m_test << std::endl;
-            //     std::map<Pos, double> samples = sample_around();
-            //     std::cout << samples.size() << std::endl;
-            //     for (auto const &s : samples)
-            //     {
-            //         std::cout << s.first.x << ", " << s.first.y // string (key)
-            //                   << ": "
-            //                   << s.second // string's value
-            //                   << std::endl;
-            //     }
-            // }
-            // m_test++;
+            prune_neighbor_table();
+            update_send_msg();
         };
 
         //----------------------------------------------------------------------
@@ -280,13 +262,14 @@ namespace Kilosim
         void initialize_neighbor_array()
         {
             // Set up the neighbor array
-            neighbor_table.resize(num_neighbors);
-            for (auto i = 0; i < neighbor_table.size(); i++)
-            {
-                // Assigning all IDs to 0 indicates no robot in that row
-                // (otherwise random ID from memory allocation could make it a mess)
-                neighbor_table[i].id = 0;
-            }
+            neighbor_table.resize(0);
+            // neighbor_table.resize(num_neighbors);
+            // for (auto i = 0; i < neighbor_table.size(); i++)
+            // {
+            //     // Assigning all IDs to 0 indicates no robot in that row
+            //     // (otherwise random ID from memory allocation could make it a mess)
+            //     neighbor_table[i].id = 0;
+            // }
         }
 
         std::map<Pos, std::vector<double>> process_msgs()
@@ -298,8 +281,6 @@ namespace Kilosim
 
             std::vector<json> new_msgs = get_msg();
 
-            bool was_added = false;
-            int ind_to_fill = -1;
             int curr_tick = get_tick();
             std::map<Pos, std::vector<double>> neighbor_pos_vel;
 
@@ -311,49 +292,115 @@ namespace Kilosim
                     // Put into return map (position + velocity)
                     neighbor_pos_vel.insert({{msg.at("curr_pos_x"), msg.at("curr_pos_y")},
                                              {msg.at("curr_vel_x"), msg.at("curr_vel_y")}});
-                    was_added = false;
-                    for (auto i = 0; i < neighbor_table.size(); i++)
+                    // Add the neighbor to the neighbor table
+                    add_neighbor(msg);
+                    // Add the contents of the message's neighbors to the table
+                    // (aka the neighbor's neighbors)
+                    for (auto &n : msg.at("neighbors"))
                     {
-                        if (neighbor_table[i].id == msg.at("id"))
+                        if (n.at("id") != id) // Don't add self
                         {
-                            // printf("UPDATING message\n");
-                            // Neighbor is already in the table
-                            // Update the value and stop looking
-                            add_msg(msg, i);
-                            was_added = true;
-                            break;
-                            // Setting the ID to 0 indicates later that this message has been processed
-                            // new_msgs[m]["id"] = 0;
+                            add_neighbor(n, true);
                         }
-                        else if (neighbor_table[i].id == 0)
-                        {
-                            // This is an empty slot that can be used for inserting new elements
-                            ind_to_fill = i;
-                        }
-                    } // end neighbor_table loop
-                    if (!was_added)
-                    {
-                        // printf("ADDING message\n");
-                        // This wasn't updating an existing value in the table.
-                        // Instead, add it at ind_to_fill
-                        // NOTE: ind_to_fill should always be set if this step is reached, because the
-                        // size of the table matches the number of neighbors
-                        add_msg(msg, ind_to_fill);
                     }
                 }
             } // end msg loop
             return neighbor_pos_vel;
         }
 
-        void add_msg(json msg, int ind)
+        void add_neighbor(json msg, bool from_table = false)
+        {
+            // Alternative way to add a neighbor to the table
+            // that resizes the table if necessary (for new ids)
+            bool was_added = false;
+            for (auto i = 0; i < neighbor_table.size(); i++)
+            {
+                if (neighbor_table[i].id == msg.at("id"))
+                {
+                    // Found an existing neighbor
+                    // IF from a received table, use the NEWEST value
+                    // Update the value and stop looking
+                    if (!from_table || (from_table && msg.at("tick_added") > neighbor_table[i].tick_added))
+                    {
+                        // Update the value only if...
+                        // Not from an rx table
+                        // OR the rx table value is newer than the table value
+                        add_neighbor(msg, i, from_table);
+                    }
+                    was_added = true;
+                    break;
+                }
+            }
+            if (!was_added)
+            {
+                // Add to the end of the vector
+                std::cout << "adding new: " << neighbor_table.size() << std::endl;
+                add_neighbor(msg, neighbor_table.size(), from_table);
+            }
+        }
+
+        void add_neighbor_old(json msg, bool from_table = false)
+        {
+            // Add a neighbor in a JSON array to the neighbor table
+            // This handles the practicals of putting it in the right spot
+            bool was_added = false;
+            int ind_to_fill = -1;
+            for (auto i = 0; i < neighbor_table.size(); i++)
+            {
+                if (neighbor_table[i].id == msg.at("id"))
+                {
+                    // Neighbor is already in the table
+                    // IF from a received table, use the NEWEST value
+                    // Update the value and stop looking
+                    if (!from_table || (from_table && msg.at("tick_added") > neighbor_table[i].tick_added))
+                    {
+                        // Update the value only if...
+                        // Not from an rx table
+                        // OR the rx table value is newer than the table value
+                        add_neighbor(msg, i, from_table);
+                    }
+                    was_added = true;
+                    break;
+                    // Setting the ID to 0 indicates later that this message has been processed
+                    // new_msgs[m]["id"] = 0;
+                }
+                else if (neighbor_table[i].id == 0)
+                {
+                    // This is an empty slot that can be used for inserting new elements
+                    ind_to_fill = i;
+                }
+            } // end neighbor_table loop
+            if (!was_added)
+            {
+                // printf("ADDING message\n");
+                // This wasn't updating an existing value in the table.
+                // Instead, add it at ind_to_fill
+                // NOTE: ind_to_fill should always be set if this step is reached, because the
+                // size of the table matches the number of neighbors
+                add_neighbor(msg, ind_to_fill, from_table);
+            }
+        }
+
+        void add_neighbor(json msg, int ind, bool from_table = false)
         {
             // Add a message to the neighbor table and check if it gives a new min value/location
             // NOTE: ind is the index of the neighbor in the neighbor table
+            if (ind >= neighbor_table.size())
+            {
+                neighbor_table.resize(ind + 1);
+            }
             neighbor_table[ind].id = msg.at("id");
             neighbor_table[ind].min_loc_x = msg.at("min_loc_x");
             neighbor_table[ind].min_loc_y = msg.at("min_loc_y");
             neighbor_table[ind].min_val = msg.at("min_val");
-            neighbor_table[ind].tick_added = get_tick();
+            if (from_table)
+            {
+                neighbor_table[ind].tick_added = msg.at("tick_added");
+            }
+            else
+            {
+                neighbor_table[ind].tick_added = get_tick();
+            }
             // Check if the new message is a new min value
             if (msg.at("min_val") < min_val)
             {
@@ -369,14 +416,28 @@ namespace Kilosim
             // Remove old messages, based on some fixed time since they were added
             // (Removal means setting the ID to 0, so it's marked as empty/ignored)
             int curr_tick = get_tick();
-            for (auto i = 0; i < neighbor_table.size(); i++)
-            {
 
-                if (neighbor_table[i].tick_added + rx_table_timeout <= curr_tick)
+            auto iterator = neighbor_table.begin();
+            while (iterator != neighbor_table.end())
+            {
+                // remove expired messages
+                if (iterator->tick_added + rx_table_timeout <= curr_tick)
                 {
-                    neighbor_table[i].id = 0;
+                    iterator = neighbor_table.erase(iterator);
+                }
+                else
+                {
+                    ++iterator;
                 }
             }
+            // for (auto i = 0; i < neighbor_table.size(); i++)
+            // {
+
+            //     if (neighbor_table[i].tick_added + rx_table_timeout <= curr_tick)
+            //     {
+            //         neighbor_table[i].id = 0;
+            //     }
+            // }
         }
 
         // Send message (continuously)
@@ -395,8 +456,29 @@ namespace Kilosim
                 msg["curr_pos_y"] = curr_pos.y;
                 msg["curr_vel_x"] = velocity[0];
                 msg["curr_vel_y"] = velocity[1];
+                msg["neighbors"] = neighbors_to_json();
                 send_msg(msg);
             }
+        }
+
+        json neighbors_to_json()
+        {
+            // Convert the neighbor table to a json object
+            json neighbors;
+            for (auto i = 0; i < neighbor_table.size(); i++)
+            {
+                json neighbor;
+                if (neighbor_table[i].id != 0)
+                {
+                    neighbor["id"] = neighbor_table[i].id;
+                    neighbor["min_loc_x"] = neighbor_table[i].min_loc_x;
+                    neighbor["min_loc_y"] = neighbor_table[i].min_loc_y;
+                    neighbor["min_val"] = neighbor_table[i].min_val;
+                    neighbor["tick_added"] = neighbor_table[i].tick_added;
+                    neighbors.push_back(neighbor);
+                }
+            }
+            return neighbors;
         }
 
         //----------------------------------------------------------------------
@@ -454,6 +536,11 @@ namespace Kilosim
             return {new_pos[0], new_pos[1], new_vel[0], new_vel[1]};
         }
 
+        std::vector<double> dispersion_velocity_update(std::map<Pos, std::vector<double>> neighbor_pos_vel)
+        {
+            // Velocity update based on dispersion: get the average velocity of all neighbors and go the opposite direction
+        }
+
         std::vector<double> boids_velocity_update(std::map<Pos, std::vector<double>> neighbor_pos_vel)
         {
             // This is Boids-based flocking algorithm for the robots to used once they've made a
@@ -467,10 +554,9 @@ namespace Kilosim
             std::vector<double> new_vel(2);
             if (neighbor_count > 0)
             {
-
                 // LENNARD-JONES FORCE FOR COHESION AND SEPARATION
                 // double mass = .0000001;
-                std::vector<double> lj_acc = lennard_jones_potential(neighbor_pos_vel, comm_range * .5);
+                std::vector<double> lj_acc = lennard_jones_potential(neighbor_pos_vel, comm_range * .75);
                 // lj_acc[0] *= mass;
                 // lj_acc[1] *= mass;
                 lj_acc = normalize_velocity(lj_acc);
@@ -486,37 +572,36 @@ namespace Kilosim
                 }
                 avg_vel_x /= neighbor_count;
                 avg_vel_y /= neighbor_count;
+                std::vector<double> avg_vel = normalize_velocity({avg_vel_x, avg_vel_y});
                 // Align steering vector
-                std::vector<double> align_steering = {avg_vel_x - velocity[0],
-                                                      avg_vel_y - velocity[1]};
-                align_steering = normalize_velocity(align_steering);
+                std::vector<double> align_steering = {avg_vel[0] - velocity[0],
+                                                      avg_vel[1] - velocity[1]};
+                // align_steering = normalize_velocity(align_steering);
 
-                // new_vel = {velocity[0] + lj_acc[0] + align_steering[0],
-                //            velocity[1] + lj_acc[1] + align_steering[1]};
-                // new_vel = {align_steering[0],
-                //            align_steering[1]};
-                new_vel = lj_acc;
+                new_vel = {velocity[0] + lj_acc[0] + align_steering[0],
+                           velocity[1] + lj_acc[1] + align_steering[1]};
+
                 new_vel = normalize_velocity(new_vel);
 
-                std::cout << "[" << neighbor_count << "]\tVelocity: ("
-                          << velocity[0] << "," << velocity[1] << ")\t+ ("
-                          << lj_acc[0] << "," << lj_acc[1] << ")\t+ ("
-                          << align_steering[0] << "," << align_steering[1] << ")\t= ("
-                          << new_vel[0] << "," << new_vel[1] << ")" << std::endl;
+                // std::cout << "[" << neighbor_count << "]\tVelocity: ("
+                //           << velocity[0] << "," << velocity[1] << ")\t+ ("
+                //           << lj_acc[0] << "," << lj_acc[1] << ")\t+ ("
+                //           << align_steering[0] << "," << align_steering[1] << ")\t= ("
+                //           << new_vel[0] << "," << new_vel[1] << ")" << std::endl;
             }
             else
             {
                 // If no neighbors, set a random velocity
                 double angle = uniform_rand_real(0, 2 * PI);
                 // new_vel = {cos(angle), sin(angle)};
-                new_vel = velocity; // DON'T CHANGE DIRECTION
+                // new_vel = velocity; // DON'T CHANGE DIRECTION
                 // convert angle to unit vector
-                // new_vel = {velocity[0] + cos(angle),
-                //            velocity[1] + sin(angle)};
-                // new_vel = normalize_velocity(new_vel);
+                new_vel = {velocity[0] + cos(angle),
+                           velocity[1] + sin(angle)};
+                new_vel = normalize_velocity(new_vel);
                 // new_vel = {uniform_rand_real(-1, 1), uniform_rand_real(-1, 1)};
-                std::cout << "---\t"
-                          << "Velocity: " << new_vel[0] << "," << new_vel[1] << std::endl;
+                // std::cout << "---\t"
+                //           << "Velocity: " << new_vel[0] << "," << new_vel[1] << std::endl;
             }
 
             // This is equlivant to setting a step_interval of 1 (ie update this every tick)
@@ -542,6 +627,8 @@ namespace Kilosim
             auto i = 0;
             for (auto const &n : neighbor_pos_vel)
             {
+                // relative_pos[i] = {n.first.x - curr_pos.x,
+                //                    n.first.y - curr_pos.y};
                 relative_pos[i] = {curr_pos.x - n.first.x,
                                    curr_pos.y - n.first.y};
                 dist[i] = sqrt(pow(relative_pos[i].x, 2) + pow(relative_pos[i].y, 2));
@@ -549,12 +636,12 @@ namespace Kilosim
 
             // (a=12, b=6) is standard for Lennard-Jones potential. The ratio has to be 2:1
             // lower numbers mean less aggressive repulsion (eg a=6, b=3)
-            int a = 12;
-            int b = 6;
+            int a = 6;
+            int b = 3;
             int epsilon = 100; // depth of the potential well, V_LJ(target_dist) = epsilon
             int gamma = 1;     // force gain
-            // double r_const = .5 * target_dist; // target distance from neighbors
-            double r_const = 3;
+            // double r_const = .8 * target_dist; // target distance from neighbors
+            double r_const = 1.1 * target_dist;
             double center_x = 0;
             double center_y = 0;
             for (auto i = 0; i < neighbor_pos_vel.size(); i++)
@@ -574,11 +661,15 @@ namespace Kilosim
         {
             // Normalize the velocity to the max_speed
             double speed = sqrt(pow(vel[0], 2) + pow(vel[1], 2));
-            if (speed > pso_max_speed)
+            if (vel[0] != 0)
             {
                 vel[0] *= pso_max_speed / speed;
+            }
+            if (vel[1] != 0)
+            {
                 vel[1] *= pso_max_speed / speed;
             }
+            // std::cout << "Normalized velocity: " << vel[0] << ", " << vel[1] << std::endl;
             return vel;
         }
 

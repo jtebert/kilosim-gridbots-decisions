@@ -65,6 +65,7 @@ int main(int argc, char *argv[])
 
         Kilosim::Viewer viewer(world, 1200);
         // viewer.set_show_network(true);
+        // viewer.set_show_tags(true);
 
         // Create robots and place in world
         std::vector<Kilosim::HybridBot *> robots(num_robots);
@@ -74,6 +75,7 @@ int main(int argc, char *argv[])
             world.add_robot(robots[n]);
             robots[n]->robot_init(0, 0, 0);
             robots[n]->step_interval = config.get("step_interval");
+            robots[n]->boids_step_interval = config.get("boids_step_interval");
             robots[n]->start_interval = (int)config.get("step_interval") * 2;
             robots[n]->end_condition = config.get("end_condition");
             robots[n]->end_val = config.get("end_val");
@@ -105,7 +107,10 @@ int main(int argc, char *argv[])
             // printf("stepping\n");
             viewer.draw();
             world.step();
+            // if ((int)(world.get_time() * world.get_tick_rate()) % 10 == 0)
+            // {
             // robots[0]->print_neighbor_array();
+            // }
             // usleep(5000); //.05s
             // sleep(1);
         }
