@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
         world.set_comm_rate(1);
 
         Kilosim::Viewer viewer(world, 1200);
-        // viewer.set_show_network(true);
+        viewer.set_show_network(true);
         // viewer.set_show_tags(true);
 
         // Create robots and place in world
