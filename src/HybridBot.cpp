@@ -177,7 +177,7 @@ namespace Kilosim
                 }
                 else if (get_tick() >= start_interval || min_val < end_val)
                 {
-                    m_state = DO_PSO;
+                    m_state = DECIDED;
                 }
             }
             else if (m_state == DO_PSO)
@@ -601,10 +601,10 @@ namespace Kilosim
                 std::vector<double> align_steering = {avg_vel[0] - velocity[0],
                                                       avg_vel[1] - velocity[1]};
                 align_steering = normalize_velocity(align_steering);
-                std::cout << "align_steering: " << align_steering[0] << ", " << align_steering[1] << std::endl;
+                // std::cout << "align_steering: " << align_steering[0] << ", " << align_steering[1] << std::endl;
 
-                new_vel = {velocity[0] + lj_acc[0] + align_steering[0],
-                           velocity[1] + lj_acc[1] + align_steering[1]};
+                new_vel = {2 * velocity[0] + lj_acc[0] + align_steering[0],
+                           2 * velocity[1] + lj_acc[1] + align_steering[1]};
                 // new_vel = {velocity[0] + align_steering[0],
                 //            velocity[1] + align_steering[1]};
                 // new_vel = lj_acc;
@@ -613,11 +613,11 @@ namespace Kilosim
 
                 new_vel = normalize_velocity(new_vel);
 
-                // std::cout << "[" << neighbor_count << "]\tVelocity: ("
-                //           << velocity[0] << "," << velocity[1] << ")\t+ ("
-                //           << lj_acc[0] << "," << lj_acc[1] << ")\t+ ("
-                //           << align_steering[0] << "," << align_steering[1] << ")\t= ("
-                //           << new_vel[0] << "," << new_vel[1] << ")" << std::endl;
+                std::cout << "[" << neighbor_count << "]\tVelocity: ("
+                          << velocity[0] << "," << velocity[1] << ")\t+ ("
+                          << lj_acc[0] << "," << lj_acc[1] << ")\t+ ("
+                          << align_steering[0] << "," << align_steering[1] << ")\t= ("
+                          << new_vel[0] << "," << new_vel[1] << ")" << std::endl;
             }
             else
             {
@@ -630,14 +630,14 @@ namespace Kilosim
                            velocity[1] + sin(angle)};
                 new_vel = normalize_velocity(new_vel);
 
-                new_vel = {pso_inertia * velocity[0] + uniform_rand_real(-1, 1),
-                           pso_inertia * velocity[1] + uniform_rand_real(-1, 1)};
+                new_vel = {pso_inertia * velocity[0] + uniform_rand_real(-10, 10),
+                           pso_inertia * velocity[1] + uniform_rand_real(-10, 10)};
                 new_vel = normalize_velocity(new_vel);
                 // std::cout << "---\t"
                 //           << "Velocity: " << new_vel[0] << "," << new_vel[1] << std::endl;
             }
 
-            // This is equlivant to setting a step_interval of 1 (ie update this every tick)
+            // This is equivalent to setting a step_interval of 1 (ie update this every tick)
             Pos curr_pos = get_pos();
             std::vector<double> target = {curr_pos.x + new_vel[0] * boids_step_interval,
                                           curr_pos.y + new_vel[1] * boids_step_interval};
@@ -676,8 +676,8 @@ namespace Kilosim
             // lower numbers mean less aggressive repulsion (eg a=6, b=3)
             double a = 6;
             double b = 3;
-            double epsilon = 100; // depth of the potential well, V_LJ(target_dist) = epsilon
-            double gamma = 1;     // force gain
+            double epsilon = 1; // depth of the potential well, V_LJ(target_dist) = epsilon
+            double gamma = 1;   // force gain
             // double r_const = .8 * target_dist; // target distance from neighbors
             double r_const = 1.1 * target_dist;
             double center_x = 0;
