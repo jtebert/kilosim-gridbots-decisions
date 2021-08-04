@@ -153,12 +153,12 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Viewer &viewer, Kilosim::Logger 
         robots[n] = new Kilosim::HybridBot();
         world.add_robot(robots[n]);
         robots[n]->robot_init(0, 0, 0);
-        robots[n]->step_interval = config.get("step_interval");
+        robots[n]->pso_step_interval = config.get("pso_step_interval");
         robots[n]->boids_step_interval = config.get("boids_step_interval");
-        robots[n]->start_interval = (int)config.get("step_interval") * 2;
+        robots[n]->start_interval = (int)config.get("pso_step_interval") * 3;
         robots[n]->end_condition = config.get("end_condition");
         robots[n]->end_val = config.get("end_val");
-        robots[n]->pso_max_speed = config.get("pso_max_speed");
+        robots[n]->max_speed = config.get("max_speed");
         robots[n]->pso_inertia = config.get("pso_inertia");
         robots[n]->pso_self_weight = config.get("pso_self_weight");
         robots[n]->pso_group_weight = config.get("pso_group_weight");
@@ -207,13 +207,6 @@ void sweep_sim(Kilosim::World &world, Kilosim::Viewer &viewer, Kilosim::Logger &
     {
         std::vector<Pos> this_path = sweep_paths[n];
 
-        // TEMPORARY: Print the sweep path
-        // for (auto p : this_path)
-        // {
-        //     std::cout << p.x << "," << p.y << std::endl;
-        // }
-        // std::cout << std::endl;
-
         Pos start_pos = this_path.back();
         this_path.pop_back();
         robots[n] = new Kilosim::SweepBot();
@@ -226,8 +219,7 @@ void sweep_sim(Kilosim::World &world, Kilosim::Viewer &viewer, Kilosim::Logger &
         // In config, comm_range is in grid cells (as dimension)
         robots[n]->comm_range = (int)config.get("comm_range") * 10;
     }
-    printf("sweep setup finished\n");
-    sleep(2);
+    // sleep(2);
     while (!is_finished(world, robots, config.get("end_condition"), config.get("end_val")) &&
            world.get_tick() <= (int)config.get("max_trial_duration"))
     {
@@ -258,14 +250,16 @@ int main(int argc, char *argv[])
     const int world_width = world_grid_width * 10;
     const int world_height = world_grid_height * 10;
     const int num_robots = config.get("num_robots");
-    const std::string robot_move_type = config.get("robot_move_type");
+    const std::string movement_type = config.get("movement_type");
 
     for (auto trial = start_trial; trial < start_trial + num_trials; trial++)
     {
         std::string trial_str = std::to_string(trial);
         trial_str.insert(trial_str.begin(), 3 - trial_str.size(), '0');
-        const std::string img_filename = img_dir + "/img_oct=" + std::to_string(env_octaves) +
-                                         "_" + trial_str + ".png";
+        const std::string img_filename = img_dir + "/" + trial_str +
+                                         "_oct=" + std::to_string(env_octaves) + ".png";
+        // const std::string img_filename = img_dir + "/img_oct=" + std::to_string(env_octaves) +
+        //                                  "_" + trial_str + ".png";
         std::cout << img_filename << std::endl;
 
         // Create 3m x 3m world (no background image, for now)
@@ -281,13 +275,12 @@ int main(int argc, char *argv[])
         Kilosim::Logger logger(world, "data.h5", trial, true);
 
         // Run the right simulation
-        if (robot_move_type == "hybrid")
+        if (movement_type == "hybrid")
         {
             hybrid_sim(world, viewer, logger, config);
         }
-        else if (robot_move_type == "sweep")
+        else if (movement_type == "sweep")
         {
-            printf("SWEEP simulation...\n");
             sweep_sim(world, viewer, logger, config);
         }
 

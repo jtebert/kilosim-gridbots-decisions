@@ -2,3 +2,7 @@ build/
 .vscode/
 lib/
 bin/
+imgs/
+test_out/
+test.json
+data_dirs.txt
