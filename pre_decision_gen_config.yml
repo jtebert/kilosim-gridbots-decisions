@@ -1,0 +1,69 @@
+# This is the base for generated configurations for the PSO parameter sweep for my ICRA 2022 paper.
+# AKA: This is only for the first tuning: choosing the right parameters for particle swarm optimization.
+# The goal is to minimize the time for the FIRST robot to find a target location.
+
+# This is YAML instead of JSON (the output format of `manage.py generate`) because YAML is easier to
+# read and lets me add comments.
+
+# The parameter values should match what's in the Google Sheet:
+# https://docs.google.com/spreadsheets/d/1qR8gwAg4WhCLUPF9Im4pzqhvJ9ET6Svqa_iohnrsBZo/edit
+
+# -- FIXED PARAMETERS ----------------------------------------------------------
+
+world_grid_width: 384
+world_grid_height: 384
+
+# config.json files generated from this will go in this directory
+data_dir_base: 'pso_test_out'
+
+# Range of trial numbers to run (inclusive on both ends)
+start_trial: 1
+num_trials: 10
+max_trial_duration: 10000 # 10,000 ticks for FIRST robot to ID a target
+# Path is relative to directory where code is run (typically project root)
+img_dir: "imgs"
+# env_img_pattern: 'imgs/img_oct={octaves}_{trial:03d}.png'
+
+max_speed: 2 # virtual speed
+
+# THESE ARE PLACEHOLDERS; THEY AREN'T USED OR TUNED FOR THIS STAGE
+# Boids parameters (only in hybrid movement)
+lj_a: 6 # Lennard-Jones potential
+lj_b: 3 # Lennard-Jones potential
+lj_epsilon: 1
+lj_gamma: 1
+boids_step_interval: 10
+
+# -- FOR PSO ONLY --------------------------------------------------------------
+
+end_condition: 'first_find'
+end_val: 4
+movement_type: 'hybrid'
+
+# -- VARIED PARAMETERS ---------------------------------------------------------
+
+# This determines what's varied within the experiments.
+# There's some redundancy
+vary_params:
+- num_robots
+- comm_range
+- env_octaves
+- gradient_weight
+- pso_step_interval
+- pso_inertia
+- pso_self_weight
+- pso_group_weight
+
+
+num_robots: [8, 16, 32, 64]
+comm_range: [4, 8, 16, 32]
+
+env_octaves: [1,3,5]
+
+# Not all movement types require additional parameters
+# (This avoids running the sweep with these different parameters that aren't used)-
+gradient_weight: [0, 4, 8, 16]
+pso_step_interval: [8, 16, 32]
+pso_inertia: [0.5, 0.75, 1.0, 1.25]
+pso_self_weight: [0.01, 0.025, 0.05, 0.1]
+pso_group_weight: [0.01, 0.025, 0.05, 0.1]

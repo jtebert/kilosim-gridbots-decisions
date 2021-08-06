@@ -6,3 +6,4 @@ imgs/
 test_out/
 test.json
 data_dirs.txt
+**/data.h5

@@ -7,26 +7,12 @@
  */
 
 #include "Gridbot.h"
+#include "BaseBot.h"
 
 #include <cmath>
 
 namespace Kilosim
 {
-
-    typedef struct neighbor_info_t
-    {
-        // one entry (row) in a table of observations/messages from neighbor robots
-        uint16_t id;
-        uint min_val;
-        uint min_loc_x;
-        uint min_loc_y;
-        uint curr_pos_x;
-        uint curr_pos_y;
-        double curr_vel_x;
-        double curr_vel_y;
-        int tick_added;
-        bool from_neighbor;
-    } neighbor_info_t;
 
     typedef struct pos_vel
     {
@@ -35,14 +21,12 @@ namespace Kilosim
         std::vector<double> vel;
     } pos_vel;
 
-    class HybridBot : public Gridbot
+    class HybridBot : public BaseBot
     {
     public:
         // Variables for aggregators
         // TODO: Add aggregators
         // Pos curr_pos;
-
-        uint8_t m_state;
 
         // ---------------------------------------------------------------------
 
@@ -50,7 +34,7 @@ namespace Kilosim
         // (Particularly parameters from external config files)
 
         // Every how many ticks to update the PSO target/velocity
-        int step_interval;
+        int pso_step_interval;
         int boids_step_interval;
         // Time to wait before doing first PSO update, so they spread out at start
         int start_interval;
@@ -64,39 +48,25 @@ namespace Kilosim
         double pso_group_weight; // 0.0
         // Current PSO velocity (for next step)
         // TODO: Starting PSO velocity might be set by parameters
-        std::vector<double> velocity = {uniform_rand_real(-1, 1),
-                                        uniform_rand_real(-1, 1)};
-        // Maximum allowed magnitude of the PSO internal velocity (per tick?)
-        // TODO: Not sure about the magnitude of this max_speed (self.max_pso_vel)
-        double pso_max_speed; // 25
+        std::vector<double> velocity;
+        // Maximum allowed magnitude of the PSO internal velocity (per tick)
+        double max_speed; // 25
 
         // GRADIENT DESCENT parameters
         double gradient_weight;
-
-        // DECISION-MAKING parameters
-        std::string end_condition; // "value" or "time"
-        // Threshold for ending (declaring target found)
-        // For "value": decision if min_val is <= end_val, decision is made
-        // For "time": decision if get_tick() >= end_val
-        int end_val;
 
         // MISCELLANEOUS
         int num_neighbors;    // Used for making neighbor array table
         int rx_table_timeout; // Time neighbor messages stay in table
 
         // Data values
-        // Minimum value (global/collective) and its location
-        uint min_val = 99999; // start higher than anything observable
-        Pos min_loc = {-1, -1};
+        // min_val and min_loc are defined in BaseBot
         // Lowest value from OWN observations
         uint obs_min_val = 99999;
         Pos obs_min_loc = {-1, -1};
         // Lowest value from RECEIVED messages
         uint rx_min_val = 99999;
         Pos rx_min_loc = {-1, -1};
-
-        // Home position is whether the robot goes to at end (and probably where it starts)
-        Pos home_pos = {0, 0};
 
         // ---------------------------------------------------------------------
 
@@ -106,7 +76,9 @@ namespace Kilosim
         void print_neighbor_array()
         {
             printf("\n");
-            std::cout << "Own ID=" << id << "\tv=" << min_val << "\tstate=" << (int)m_state << "\t(t=" << get_tick() << ")" << std::endl;
+            std::cout << "Own ID=" << id << "\tv=" << min_val << "\tstate=" << (int)m_state
+                      << "\t(t=" << get_tick() << ")"
+                      << " (" << get_pos().x << "," << get_pos().y << ")" << std::endl;
             std::cout << "ID\tMinX\tMinY\tMinVal\tCurrX\tCurrY\tTickAdded" << std::endl;
             for (auto &n : neighbor_table)
             {
@@ -119,31 +91,24 @@ namespace Kilosim
             printf("\n");
         }
 
-        // Check if the robot has returned home (ie full simulation is complete for this run)
-        bool is_home()
-        {
-            return m_state == HOME;
-        }
-
     private:
         // States
-        static const uint8_t INIT = 0;
-        static const uint8_t SPREAD = 1;
-        static const uint8_t DO_PSO = 2;
-        static const uint8_t DECIDED = 3;
-        static const uint8_t SEND_HOME = 4;
-        static const uint8_t GO_HOME = 5;
-        static const uint8_t HOME = 6;
+        // static const uint8_t INIT = 0;
+        // static const uint8_t SPREAD = 1;
+        // static const uint8_t DO_PSO = 2;
+        // static const uint8_t DECIDED = 3;
+        // static const uint8_t SEND_HOME = 4;
+        // static const uint8_t GO_HOME = 5;
+        // static const uint8_t HOME = 6;
 
         // Utility attributes/variables
         // Current (starting) angle and velocity
         double start_angle = uniform_rand_real(5 * PI / 180, 85 * PI / 180);
         // Previous position (current position curr_pos is public for aggregators)
         Pos prev_pos;
+        Pos curr_pos;
         // Where the robot is going (used by move_toward_target)
         Pos target_pos;
-
-        std::vector<neighbor_info_t> neighbor_table;
 
         void setup()
         {
@@ -156,10 +121,17 @@ namespace Kilosim
         void loop()
         {
             // Update positions
-            // curr_pos = get_pos();
+            prev_pos = curr_pos;
+            curr_pos = get_pos();
 
-            // Process all messages in the queue since the last tick
-            std::map<Pos, std::vector<double>> neighbor_pos_vel;
+            // EVERY TICK: Sample around the robot, then mark the observed/visited positions
+            // This is used by aggregators to determine collective coverage
+            std::map<Pos, double> pos_samples = sample_around();
+            map_coverage(pos_samples);
+            if (prev_pos != curr_pos)
+            {
+                map_visited(get_pos());
+            }
 
             if (m_state == INIT)
             {
@@ -171,14 +143,14 @@ namespace Kilosim
                 target_pos = {2 * tmp_vel[0], 2 * tmp_vel[1]};
                 set_pso_path(target_pos, tmp_vel, start_interval);
                 target_pos = m_path_to_target[0]; // target is last position in path
+                velocity = normalize_velocity({uniform_rand_real(-max_speed, max_speed),
+                                               uniform_rand_real(-max_speed, max_speed)});
                 m_state = SPREAD;
             }
             else if (m_state == SPREAD)
             {
                 // Spread away from the origin before doing PSO
-                neighbor_pos_vel = process_msgs();
-                std::map<Pos, double> pos_samples = sample_around();
-                map_samples(pos_samples);
+                process_msgs();
                 update_mins(pos_samples);
                 if (is_time_to_go_home())
                 {
@@ -192,11 +164,9 @@ namespace Kilosim
             else if (m_state == DO_PSO)
             {
                 int tick = get_tick();
-                neighbor_pos_vel = process_msgs();
-                std::map<Pos, double> pos_samples = sample_around();
-                map_samples(pos_samples);
+                process_msgs();
                 update_mins(pos_samples);
-                if (tick % step_interval == 1)
+                if (tick % pso_step_interval == 1)
                 {
                     std::vector<double> new_pos_vel = pso_velocity_update(pos_samples);
                     target_pos = {new_pos_vel[0], new_pos_vel[1]};
@@ -216,9 +186,7 @@ namespace Kilosim
             else if (m_state == DECIDED)
             {
                 // Share the decision with neighbors (aka do Boids)
-                neighbor_pos_vel = process_msgs();
-                std::map<Pos, double> pos_samples = sample_around();
-                map_samples(pos_samples);
+                process_msgs();
                 update_mins(pos_samples);
                 if ((int)get_tick() % boids_step_interval == 2)
                 {
@@ -296,73 +264,6 @@ namespace Kilosim
             // }
         }
 
-        std::map<Pos, std::vector<double>> process_msgs()
-        {
-            // Process all messages since the last tick
-            // Add each one to the neighbor table
-            // RETURNS: map<Pos, Pos> of {position, velocity} of all neighbors heard from in this tick
-            // (this is used for Boids velocity updates)
-
-            std::vector<json> new_msgs = get_msg();
-
-            int curr_tick = get_tick();
-            std::map<Pos, std::vector<double>> neighbor_pos_vel;
-
-            for (auto m = 0; m < new_msgs.size(); m++)
-            {
-                json msg = new_msgs[m];
-                if (!msg.is_null())
-                {
-                    // Put into return map (position + velocity)
-                    neighbor_pos_vel.insert({{msg.at("curr_pos_x"), msg.at("curr_pos_y")},
-                                             {msg.at("curr_vel_x"), msg.at("curr_vel_y")}});
-                    // Add the neighbor to the neighbor table
-                    add_neighbor(msg);
-                    // Add the contents of the message's neighbors to the table
-                    // (aka the neighbor's neighbors)
-                    for (auto &n : msg.at("neighbors"))
-                    {
-                        if (n.at("id") != id) // Don't add self
-                        {
-                            add_neighbor(n, true);
-                        }
-                    }
-                }
-            } // end msg loop
-            return neighbor_pos_vel;
-        }
-
-        void add_neighbor(json msg, bool from_table = false)
-        {
-            // Alternative way to add a neighbor to the table
-            // that resizes the table if necessary (for new ids)
-            bool was_added = false;
-            for (auto i = 0; i < neighbor_table.size(); i++)
-            {
-                if (neighbor_table[i].id == msg.at("id"))
-                {
-                    // Found an existing neighbor
-                    // IF from a received table, use the NEWEST value
-                    // Update the value and stop looking
-                    if (!from_table || (from_table && msg.at("tick_added") > neighbor_table[i].tick_added))
-                    {
-                        // Update the value only if...
-                        // Not from an rx table
-                        // OR the rx table value is newer than the table value
-                        add_neighbor(msg, i, from_table);
-                    }
-                    was_added = true;
-                    break;
-                }
-            }
-            if (!was_added)
-            {
-                // Add to the end of the vector
-                // std::cout << "adding new: " << neighbor_table.size() << std::endl;
-                add_neighbor(msg, neighbor_table.size(), from_table);
-            }
-        }
-
         // void add_neighbor_old(json msg, bool from_table = false)
         // {
         //     // Add a neighbor in a JSON array to the neighbor table
@@ -405,7 +306,7 @@ namespace Kilosim
         //     }
         // }
 
-        void add_neighbor(json msg, int ind, bool from_table = false)
+        void add_neighbor(json msg, unsigned long int ind, bool from_table = false)
         {
             // Add a message to the neighbor table and check if it gives a new min value/location
             // NOTE: ind is the index of the neighbor in the neighbor table
@@ -562,7 +463,7 @@ namespace Kilosim
                 new_vel[i] = inertia + p_term + g_term + gradient;
                 // This is the new target position to draw a straight (target)
                 // line to before the next update
-                new_pos[i] = v_curr_pos[i] + new_vel[i] * step_interval;
+                new_pos[i] = v_curr_pos[i] + new_vel[i] * pso_step_interval;
             }
 
             // TODO: Normalize velocity here?
@@ -573,7 +474,7 @@ namespace Kilosim
             return {new_pos[0], new_pos[1], new_vel[0], new_vel[1]};
         }
 
-        std::vector<double> dispersion_velocity_update(std::map<Pos, std::vector<double>> neighbor_pos_vel)
+        std::vector<double> dispersion_velocity_update(std::map<uint16_t, pos_vel> neighbor_pos_vel)
         {
             // Velocity update based on dispersion: get the average velocity of all neighbors and go the opposite direction
         }
@@ -616,8 +517,8 @@ namespace Kilosim
                 align_steering = normalize_velocity(align_steering);
                 // std::cout << "align_steering: " << align_steering[0] << ", " << align_steering[1] << std::endl;
 
-                new_vel = {1 * velocity[0] + 1 * lj_acc[0] + 1 * align_steering[0],
-                           1 * velocity[1] + 1 * lj_acc[1] + 1 * align_steering[1]};
+                new_vel = {2 * velocity[0] + 1 * lj_acc[0] + 1 * align_steering[0],
+                           2 * velocity[1] + 1 * lj_acc[1] + 1 * align_steering[1]};
                 // new_vel = {.5 * velocity[0] + .5 * lj_acc[0] + .5 * align_steering[0],
                 //            .5 * velocity[1] + .5 * lj_acc[1] + .5 * align_steering[1]};
                 // new_vel = {velocity[0] + align_steering[0],
@@ -628,12 +529,13 @@ namespace Kilosim
 
                 new_vel = normalize_velocity(new_vel);
 
-                std::cout << get_tick() << " " << id << "\t[" << neighbor_count << "]\t(" << get_pos().x << "," << get_pos().y << "):\t("
-                          << velocity[0] << "," << velocity[1] << ")\t+ ("
-                          << lj_acc[0] << "," << lj_acc[1] << ")\t+ ("
-                          << align_steering[0] << "," << align_steering[1] << ")\t= ("
-                          << new_vel[0] << "," << new_vel[1] << ")" << std::endl;
-                print_neighbor_array();
+                // FOR DEBUGGING BOIDS
+                // std::cout << get_tick() << " " << id << "\t[" << neighbor_count << "]\t(" << get_pos().x << "," << get_pos().y << "):\t("
+                //           << velocity[0] << "," << velocity[1] << ")\t+ ("
+                //           << lj_acc[0] << "," << lj_acc[1] << ")\t+ ("
+                //           << align_steering[0] << "," << align_steering[1] << ")\t= ("
+                //           << new_vel[0] << "," << new_vel[1] << ")" << std::endl;
+                // print_neighbor_array();
             }
             else
             {
@@ -698,19 +600,25 @@ namespace Kilosim
             double a = 6;
             double b = 3;
             double epsilon = 1; // depth of the potential well, V_LJ(target_dist) = epsilon
-            double gamma = 100; // force gain
+            double gamma = 1;   // force gain
             // double r_const = .8 * target_dist; // target distance from neighbors
             double r_const = 1.1 * target_dist;
             double center_x = 0;
             double center_y = 0;
-            for (auto i = 0; i < neighbor_pos_vel.size(); i++)
+            for (auto i = 0ul; i < neighbor_pos_vel.size(); i++)
             {
                 double r = std::min(r_const, dist[i]);
                 r = std::max(r, 1.0); // minimum distance is 1 (not on same cell)
+                // Dividing by r here and then multiplying by the relative_pos vector later on is equivalent to
+                // multiplying by the unit vector in the direction of the neighbor (relative_pos[i])
+                // Using r instead of dist prevents divide by zero errors, but if they're on the same cell, the
+                // relative_pos vector will be zero anyway and the force goes to zero (which it really shouldn't, but
+                // that's an issue with putting things on a grid where positions can be on the same cell).
                 double f_lj = -(gamma * epsilon / r) * ((a * std::pow(target_dist / r, a)) - (2 * b * std::pow(target_dist / r, b)));
                 center_x += f_lj * relative_pos[i].x;
                 center_y += f_lj * relative_pos[i].y;
             }
+
             center_x /= neighbor_pos_vel.size();
             center_y /= neighbor_pos_vel.size();
 
@@ -733,15 +641,15 @@ namespace Kilosim
             // Then multiply by max_speed to set the vector's magnitude to max_speed
             // This reduces the magnitude of the vector to max_speed if it's too large,
             // but retains the direction of the vector.
-            if (speed > pso_max_speed)
+            if (speed > max_speed)
             {
                 if (vel[0] != 0)
                 {
-                    vel[0] *= pso_max_speed / speed;
+                    vel[0] *= max_speed / speed;
                 }
                 if (vel[1] != 0)
                 {
-                    vel[1] *= pso_max_speed / speed;
+                    vel[1] *= max_speed / speed;
                 }
             }
             // std::cout << "Normalized velocity: " << vel[0] << ", " << vel[1] << std::endl;
@@ -751,31 +659,6 @@ namespace Kilosim
         //----------------------------------------------------------------------
         // POST-DECISION
         //----------------------------------------------------------------------
-
-        // Compute whether all the robots in the neighbor_table have found a min_val below the threshold
-        bool all_neighbors_decided()
-        {
-            if (end_condition == "value")
-            {
-                // std::cout << "neighbor count: " << neighbor_table.size() << std::endl;
-                for (auto const &n : neighbor_table)
-                {
-                    if (n.id != 0)
-                    {
-                        if (n.min_val > end_val)
-                        {
-                            // There's a robots that has not found a min_val below the threshold
-                            // so we can stop searching. Don't
-                            return false;
-                        }
-                    }
-                }
-                // We haven't found any undecided neighbors
-                return true;
-            }
-            // irrelevant if using time-based end condition
-            return false;
-        }
 
         //----------------------------------------------------------------------
         // PATHS
@@ -787,7 +670,7 @@ namespace Kilosim
             // and terminate to number of steps in interval
             if (path_len == 0)
             {
-                path_len = step_interval;
+                path_len = pso_step_interval;
             }
 
             // Set the initial path
@@ -870,24 +753,6 @@ namespace Kilosim
             return {vpos[0], vpos[1], flip_count[0], flip_count[1]};
         }
 
-        //----------------------------------------------------------------------
-        // MAPS
-        //----------------------------------------------------------------------
-
-        void map_samples(std::map<Pos, double> samples)
-        {
-            // Put the (position, sample) pairs into the map
-            // Loop over the samples in the map
-            for (auto const &s : samples)
-            {
-                if (s.first.x >= 0 && s.first.x < m_arena_grid_width &&
-                    s.first.y >= 0 && s.first.y < m_arena_grid_height)
-                {
-                    m_map[s.first.x][s.first.y] = s.second;
-                }
-            }
-        }
-
         void update_mins(std::map<Pos, double> pos_samples, bool is_own_obs = false)
         {
             // Update the minimum location and value, if any of the new values are lower
@@ -931,49 +796,6 @@ namespace Kilosim
         //----------------------------------------------------------------------
         // MISCELLANEOUS
         //----------------------------------------------------------------------
-
-        bool is_finished()
-        {
-            if (end_condition == "time")
-            {
-                return get_tick() >= end_val;
-            }
-            else if (end_condition == "value")
-            {
-                return min_val <= end_val;
-            }
-            else
-            {
-                return false;
-            }
-        }
-
-        bool is_time_to_go_home()
-        {
-            // Check if it's time to head home.
-            // This is used only when the end_condition is "time".
-            // Checks if there's enough time left to head home before time is up.
-            if (end_condition == "time")
-            {
-                // Get the time left to go home
-                int time_left = end_val - get_tick();
-
-                // Otherwise, need to do more checks (ie full path)
-                Pos curr_pos = get_pos();
-                std::vector<Pos> path_home = create_line(curr_pos.x, curr_pos.y,
-                                                         home_pos.x, home_pos.y);
-                int path_home_len = path_home.size();
-
-                if (path_home_len >= time_left)
-                {
-                    // If there's enough time left, go home!
-                    return true;
-                }
-            }
-            // We're not doing time-based end condition
-            // OR keep going for remaining time
-            return false;
-        }
 
     }; // end class
 } // namespace Kilosim

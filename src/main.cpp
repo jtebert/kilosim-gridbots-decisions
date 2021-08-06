@@ -7,6 +7,86 @@
 
 #include <unistd.h>
 
+// AGGREGATORS
+
+std::vector<double> decision_states(std::vector<Kilosim::Robot *> &robots)
+{
+    // Get the current state of the robots' decisions. (undecided, self decided, all decided)
+    // This is represented by the robot's m_state
+}
+
+std::vector<double> robot_coverage(std::vector<Kilosim::Robot *> &robots)
+{
+    // Get the total number of cells covered by each robot.
+    // This includes the number of cells covered by the robot's sensors, not where the robot walked.
+    // It also doesn't account for duplicates (ie, if a robot is in a cell twice, it will only count once).
+    std::vector<double> coverage(robots.size());
+    int i = 0;
+    for (auto &robot : robots)
+    {
+        Kilosim::BaseBot *bot = (Kilosim::BaseBot *)robot;
+        coverage[i] = bot->map_coverage_count();
+        i++;
+    }
+    return coverage;
+}
+
+std::vector<double> robot_distance(std::vector<Kilosim::Robot *> &robots)
+{
+    // Get the distance each robot has traveled.
+    // This is the number of cells the robot has walked, not the number of cells covered by the robot's sensors.
+    std::vector<double> distances(robots.size());
+    for (auto i = 0ul; i < robots.size(); i++)
+    {
+        Kilosim::BaseBot *bb = (Kilosim::BaseBot *)robots[i];
+        distances[i] = bb->map_visited_count();
+    }
+    return distances;
+}
+
+std::vector<double> collective_coverage(std::vector<Kilosim::Robot *> &robots)
+{
+    // Add up how much of the map the robots have observed (over all robots).
+    // This is very time-intensive -- AT LEAST O(nwh) (n=num_robots, w=width, h=height)
+    // Probably most useful to only call at the end to check how much was covered
+    std::vector<std::vector<int>> collective_map;
+    for (auto i = 0ul; i < robots.size(); i++)
+    {
+        Kilosim::BaseBot *bb = (Kilosim::BaseBot *)robots[i];
+        std::vector<std::vector<int>> map = bb->get_map();
+        // On the first go, resize the map to match the robot's map and fill with zeros
+        if (i == 0)
+        {
+            collective_map.resize(map.size(), std::vector<int>(map[0].size(), 0));
+            // m_map.resize(m_arena_grid_height, std::vector<int>(m_arena_grid_width, -1))
+        }
+        // Add the robot's map to the collective map
+        for (auto j = 0ul; j < map.size(); j++)
+        {
+            for (auto k = 0ul; k < map[j].size(); k++)
+            {
+                if (map[j][k] != -1)
+                {
+                    // Only add 1 if the cell was observed
+                    collective_map[j][k] += std::min(1, map[j][k]);
+                }
+            }
+        }
+    }
+    // Add up the collective map to get the total number of cells covered
+    double total_coverage = 0;
+    for (auto j = 0ul; j < collective_map.size(); j++)
+    {
+        for (auto k = 0ul; k < collective_map[j].size(); k++)
+        {
+            total_coverage += collective_map[j][k];
+        }
+    }
+    return std::vector<double>{total_coverage};
+}
+
+// -------------------------------------------------------------------------------------------------
+
 // Check if all of the robots in the world are finished
 // (either they all found the source and returned home, or the time limit expired)
 bool is_finished(Kilosim::World &world, std::vector<Kilosim::HybridBot *> robots, std::string end_condition, int end_val)
@@ -25,6 +105,19 @@ bool is_finished(Kilosim::World &world, std::vector<Kilosim::HybridBot *> robots
                 return false;
             }
         }
+    }
+    else if (end_condition == "first_find")
+    {
+        for (auto robot : robots)
+        {
+            // Robot is finished if it found a target below threshold
+            if (robot->is_finished())
+            {
+                return true;
+            }
+        }
+        // There are no robots finished
+        return false;
     }
     // Else no robots that *didn't* meet the end condition
     return true;
@@ -145,6 +238,10 @@ std::vector<std::vector<Pos>> compute_sweep_paths(int arena_width, int arena_hei
 void hybrid_sim(Kilosim::World &world, Kilosim::Viewer &viewer, Kilosim::Logger &logger, Kilosim::ConfigParser &config)
 {
     int num_robots = config.get("num_robots");
+    std::string end_condition = config.get("end_condition");
+    int end_val = config.get("end_val");
+    unsigned long int max_duration = config.get("max_trial_duration");
+
     std::vector<Kilosim::HybridBot *> robots(num_robots);
 
     int i = 0;
@@ -169,13 +266,13 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Viewer &viewer, Kilosim::Logger 
         robots[n]->num_neighbors = num_robots - 1;
         robots[n]->rx_table_timeout = config.get("rx_table_timeout");
         // TEMPORARY
-        robots[n]->velocity = {(double)i, (double)i * 2};
+        // robots[n]->velocity = {(double)i, (double)i * 2};
         i++;
     }
     sleep(2);
     // while (world.get_time() < trial_duration * world.get_tick_rate())
-    while (!is_finished(world, robots, config.get("end_condition"), config.get("end_val")) &&
-           world.get_tick() <= (int)config.get("max_trial_duration"))
+    while (!is_finished(world, robots, end_condition, end_val) &&
+           world.get_tick() <= max_duration)
     {
         viewer.draw();
         world.step();
@@ -187,6 +284,11 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Viewer &viewer, Kilosim::Logger 
 
 void sweep_sim(Kilosim::World &world, Kilosim::Viewer &viewer, Kilosim::Logger &logger, Kilosim::ConfigParser &config)
 {
+    int num_robots = config.get("num_robots");
+    std::string end_condition = config.get("end_condition");
+    int end_val = config.get("end_val");
+    unsigned long int max_duration = config.get("max_trial_duration");
+
     std::vector<std::vector<Pos>> sweep_paths =
         compute_sweep_paths(config.get("world_grid_width"),
                             config.get("world_grid_height"),
@@ -201,7 +303,6 @@ void sweep_sim(Kilosim::World &world, Kilosim::Viewer &viewer, Kilosim::Logger &
     }
     std::cout << max_path_len << std::endl;
 
-    int num_robots = config.get("num_robots");
     std::vector<Kilosim::SweepBot *> robots(num_robots);
     for (int n = 0; n < num_robots; n++)
     {
@@ -212,16 +313,16 @@ void sweep_sim(Kilosim::World &world, Kilosim::Viewer &viewer, Kilosim::Logger &
         robots[n] = new Kilosim::SweepBot();
         world.add_robot(robots[n]);
         robots[n]->robot_init(start_pos.x, start_pos.y, 0);
-        robots[n]->end_condition = config.get("end_condition");
-        robots[n]->end_val = config.get("end_val");
+        robots[n]->end_condition = end_condition;
+        robots[n]->end_val = end_val;
         robots[n]->set_path_external(this_path);
         robots[n]->max_path_len = max_path_len;
         // In config, comm_range is in grid cells (as dimension)
         robots[n]->comm_range = (int)config.get("comm_range") * 10;
     }
     // sleep(2);
-    while (!is_finished(world, robots, config.get("end_condition"), config.get("end_val")) &&
-           world.get_tick() <= (int)config.get("max_trial_duration"))
+    while (!is_finished(world, robots, end_condition, end_val) &&
+           world.get_tick() <= max_duration)
     {
         viewer.draw();
         world.step();
@@ -249,7 +350,6 @@ int main(int argc, char *argv[])
     const int world_grid_height = (int)config.get("world_grid_height");
     const int world_width = world_grid_width * 10;
     const int world_height = world_grid_height * 10;
-    const int num_robots = config.get("num_robots");
     const std::string movement_type = config.get("movement_type");
 
     for (auto trial = start_trial; trial < start_trial + num_trials; trial++)
@@ -283,6 +383,12 @@ int main(int argc, char *argv[])
         {
             sweep_sim(world, viewer, logger, config);
         }
+
+        // These are things that are only logged once, at the end of the experiment!
+        logger.add_aggregator("robot_distance", robot_distance);
+        logger.add_aggregator("robot_coverage", robot_coverage);
+        logger.add_aggregator("collective_coverage", collective_coverage);
+        logger.log_state();
 
         std::cout << "Finished trial " << trial << "\tt=" << world.get_time() * world.get_tick_rate() << std::endl;
     }

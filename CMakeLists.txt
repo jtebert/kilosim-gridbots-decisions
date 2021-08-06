@@ -17,14 +17,14 @@ include_directories(api)
 
 # Be sure to list all source files
 add_executable(gridbots_decisions
-  src/Bot.cpp
   src/main.cpp
 )
 
 # Link the kilosim library
 target_link_libraries(gridbots_decisions PRIVATE kilosim kilosim_gridbots)
 
-target_compile_options(gridbots_decisions PRIVATE -pg -march=native -Wall -Wextra)
+target_compile_options(gridbots_decisions PRIVATE -pg -march=native)
+# target_compile_options(gridbots_decisions PRIVATE -pg -march=native -Wall -Wextra)
 # target_compile_options(gridbots_decisions PRIVATE -pg -O0 -march=native -Wall -Wextra)
 
 
