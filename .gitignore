@@ -7,3 +7,5 @@ test_out/
 test.json
 data_dirs.txt
 **/data.h5
+venv/
+data_dirs*

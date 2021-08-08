@@ -68,7 +68,8 @@ def format_value(val) -> str:
         return '{' + ','.join([f'{k}:'+format_value(v) for k, v in val.items()]) + '}'
 
 
-def gen_configs(src_yml: str, out_filename: str, allow_overwrite: bool = False):
+def gen_configs(src_yml: str, out_filename: str,
+                allow_overwrite: bool = False, descriptive_folders: bool = False):
     """
     Generate all of the possible configuration combinations based on the cross
     product of all vary_params options in the given src_yml. A YAML config file
@@ -94,6 +95,10 @@ def gen_configs(src_yml: str, out_filename: str, allow_overwrite: bool = False):
         Whether to overwrite configs where the directory already exists (defaults to False).
         If True, these will also be included in the out_filename; otherwise, out_filename will only
         contain the names of the directories that were created
+    descriptive_folders : bool
+        Whether to use descriptive subfolders for the generated configs (defaults to False).
+        If true, the subfolder names will be the concatenation of all of the varied parameter names and values.
+        If false, the subfolder names will be numerically indexed.
     """
     with open(src_yml) as f:
         src_config = yaml.load(f, Loader=yaml.FullLoader)
@@ -150,14 +155,23 @@ def gen_configs(src_yml: str, out_filename: str, allow_overwrite: bool = False):
                             all_conditions.extend([dict(condition, **s_c)
                                                    for s_c in sub_conditions])
 
-    data_dirs = [os.path.join(data_dir_base,
-                              '-'.join(f'{k}={format_value(v)}' for k, v in config.items()))
-                 for config in all_conditions]
+    if descriptive_folders:
+        data_dirs = [os.path.join(data_dir_base,
+                                '-'.join(f'{k}={format_value(v)}' for k, v in config.items()))
+                    for config in all_conditions]
+    else:
+        # Number the directories
+        num_dirs = len(all_conditions)
+        zlen = len(str(num_dirs))
+        data_dirs = [os.path.join(data_dir_base, f'params-{str(i).zfill(zlen)}') for i in range(num_dirs)]
 
     print(f'Generating {len(all_conditions)} conditions...')
 
     new_data_dirs = []
-    for varied_config, data_dir in zip(all_conditions, data_dirs):
+    num_dirs = len(data_dirs)
+    for ind, varied_config, data_dir in zip(range(num_dirs), all_conditions, data_dirs):
+        if int(ind % int(num_dirs/80)) == 0:
+            print('.', end="", flush=True)
         # Combine fixed and varied parameters
         # out_config = src_config.deepcopy()
         out_config = copy.deepcopy(src_config)
@@ -169,16 +183,18 @@ def gen_configs(src_yml: str, out_filename: str, allow_overwrite: bool = False):
         if allow_overwrite or (not allow_overwrite and not os.path.exists(data_dir)):
             # If overwrites are allowed OR if the directory doesn't exist
             os.makedirs(data_dir, exist_ok=True)
-            print("CREATING\t", data_dir)
+            # print("CREATING\t", data_dir)
             new_data_dirs.append(data_dir)
         else:
-            print('SKIPPING\t', data_dir)
+            # print('SKIPPING\t', data_dir)
+            pass
         # Dump to config.json in that location
         config_filename = os.path.join(data_dir, 'config.json')
         with open(config_filename, 'w') as config_file:
             json.dump(out_config, config_file)
         # with open('data.yml', 'w') as outfile:
         #     yaml.dump(data, outfile, default_flow_style=False)
+    print()
 
     # Save the directory names to a file (ONLY DIRS THAT WERE CREATED)
     with open(out_filename, 'w') as f:
@@ -260,8 +276,9 @@ def run_all_self_split(exec_filename: str, orig_data_dirs_filename: str, num_thr
 def run_single(exec_filename, data_dir):
     # Run a single instance
     # This just makes things easier to read
-    config_file = os.path.join(data_dir, 'config.yml')
-    subprocess.call(['python', exec_filename, config_file])
+    config_file = os.path.join(data_dir, 'config.json')
+    # subprocess.call(['python', exec_filename, config_file])
+    subprocess.call([exec_filename, config_file])
 
 
 def run_group_sequential(exec_filename: str, dirs_filename: str):
@@ -322,6 +339,12 @@ if __name__ == "__main__":
         default=DATA_DIRS_FILENAME,
         help="Name of text file to output data directories"
     )
+    gen_parser.add_argument(
+        "--descriptive_folders",
+        default=False,
+        action='store_true',
+        help='Whether to use descriptive names for the folders (ie, including varied parameter names/values)'
+    )
 
     split_parser = subparser.add_parser("split")
     split_parser.set_defaults(cmd='split')
@@ -380,7 +403,9 @@ if __name__ == "__main__":
             print('Generating configurations')
             print('Source:', args.src)
             print('Output:', args.outfile)
-            gen_configs(args.src, args.outfile, allow_overwrite=args.allow_overwrite)
+            gen_configs(args.src, args.outfile,
+                        allow_overwrite=args.allow_overwrite,
+                        descriptive_folders=args.descriptive_folders)
 
         elif args.cmd == 'split':
             print(f'Splitting {args.infile} into [{args.num_splits}] parts')

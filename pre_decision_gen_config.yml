@@ -14,17 +14,17 @@ world_grid_width: 384
 world_grid_height: 384
 
 # config.json files generated from this will go in this directory
-data_dir_base: 'pso_test_out'
+data_dir_base: 'test_out'
+# data_dir_base: '/media/jtebert/CD99-96EA/test_out'
 
 # Range of trial numbers to run (inclusive on both ends)
 start_trial: 1
-num_trials: 10
+num_trials: 50
 max_trial_duration: 10000 # 10,000 ticks for FIRST robot to ID a target
 # Path is relative to directory where code is run (typically project root)
 img_dir: "imgs"
 # env_img_pattern: 'imgs/img_oct={octaves}_{trial:03d}.png'
 
-max_speed: 2 # virtual speed
 
 # THESE ARE PLACEHOLDERS; THEY AREN'T USED OR TUNED FOR THIS STAGE
 # Boids parameters (only in hybrid movement)
@@ -33,6 +33,7 @@ lj_b: 3 # Lennard-Jones potential
 lj_epsilon: 1
 lj_gamma: 1
 boids_step_interval: 10
+rx_table_timeout: 512
 
 # -- FOR PSO ONLY --------------------------------------------------------------
 
@@ -53,7 +54,7 @@ vary_params:
 - pso_inertia
 - pso_self_weight
 - pso_group_weight
-
+- max_speed
 
 num_robots: [8, 16, 32, 64]
 comm_range: [4, 8, 16, 32]
@@ -67,3 +68,8 @@ pso_step_interval: [8, 16, 32]
 pso_inertia: [0.5, 0.75, 1.0, 1.25]
 pso_self_weight: [0.01, 0.025, 0.05, 0.1]
 pso_group_weight: [0.01, 0.025, 0.05, 0.1]
+
+# virtual speed
+# I've tried both and have no idea which is better
+# This doubles the number of trials, but will hopefully keep me out of a sad rabbit hole in the future
+max_speed: [2, 25]

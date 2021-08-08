@@ -55,6 +55,12 @@ namespace Kilosim
         // GRADIENT DESCENT parameters
         double gradient_weight;
 
+        // BOIDS PARMETERS
+        double lj_a;
+        double lj_b;
+        double lj_epsilon;
+        double lj_gamma;
+
         // MISCELLANEOUS
         int num_neighbors;    // Used for making neighbor array table
         int rx_table_timeout; // Time neighbor messages stay in table
@@ -597,10 +603,11 @@ namespace Kilosim
 
             // (a=12, b=6) is standard for Lennard-Jones potential. The ratio has to be 2:1
             // lower numbers mean less aggressive repulsion (eg a=6, b=3)
-            double a = 6;
-            double b = 3;
-            double epsilon = 1; // depth of the potential well, V_LJ(target_dist) = epsilon
-            double gamma = 1;   // force gain
+            // THESE NOW COME FROM A CONFIG FILE
+            // double a = 6;
+            // double b = 3;
+            // double epsilon = 1; // depth of the potential well, V_LJ(target_dist) = epsilon
+            // double gamma = 1;   // force gain
             // double r_const = .8 * target_dist; // target distance from neighbors
             double r_const = 1.1 * target_dist;
             double center_x = 0;
@@ -614,7 +621,7 @@ namespace Kilosim
                 // Using r instead of dist prevents divide by zero errors, but if they're on the same cell, the
                 // relative_pos vector will be zero anyway and the force goes to zero (which it really shouldn't, but
                 // that's an issue with putting things on a grid where positions can be on the same cell).
-                double f_lj = -(gamma * epsilon / r) * ((a * std::pow(target_dist / r, a)) - (2 * b * std::pow(target_dist / r, b)));
+                double f_lj = -(lj_gamma * lj_epsilon / r) * ((lj_a * std::pow(target_dist / r, lj_a)) - (2 * lj_b * std::pow(target_dist / r, lj_b)));
                 center_x += f_lj * relative_pos[i].x;
                 center_y += f_lj * relative_pos[i].y;
             }

@@ -13,6 +13,13 @@ std::vector<double> decision_states(std::vector<Kilosim::Robot *> &robots)
 {
     // Get the current state of the robots' decisions. (undecided, self decided, all decided)
     // This is represented by the robot's m_state
+    std::vector<double> decision_states;
+    for (auto i = 0ul; i < robots.size(); i++)
+    {
+        Kilosim::BaseBot *bot = (Kilosim::BaseBot *)robots[i];
+        decision_states[i] = bot->get_state();
+    }
+    return decision_states;
 }
 
 std::vector<double> robot_coverage(std::vector<Kilosim::Robot *> &robots)
@@ -235,8 +242,12 @@ std::vector<std::vector<Pos>> compute_sweep_paths(int arena_width, int arena_hei
     return paths;
 }
 
-void hybrid_sim(Kilosim::World &world, Kilosim::Viewer &viewer, Kilosim::Logger &logger, Kilosim::ConfigParser &config)
+void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigParser &config)
 {
+    // Kilosim::Viewer viewer(world, 1200);
+    // viewer.set_show_network(true);
+    // viewer.set_show_tags(true);
+
     int num_robots = config.get("num_robots");
     std::string end_condition = config.get("end_condition");
     int end_val = config.get("end_val");
@@ -265,16 +276,22 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Viewer &viewer, Kilosim::Logger 
         robots[n]->comm_range = (int)config.get("comm_range") * 10;
         robots[n]->num_neighbors = num_robots - 1;
         robots[n]->rx_table_timeout = config.get("rx_table_timeout");
+        // Boids parameters
+        robots[n]->lj_a = config.get("lj_a");
+        robots[n]->lj_b = config.get("lj_b");
+        robots[n]->lj_epsilon = config.get("lj_epsilon");
+        robots[n]->lj_gamma = config.get("lj_gamma");
+        robots[n]->boids_step_interval = config.get("boids_step_interval");
         // TEMPORARY
         // robots[n]->velocity = {(double)i, (double)i * 2};
         i++;
     }
-    sleep(2);
+    // sleep(2);
     // while (world.get_time() < trial_duration * world.get_tick_rate())
     while (!is_finished(world, robots, end_condition, end_val) &&
            world.get_tick() <= max_duration)
     {
-        viewer.draw();
+        // viewer.draw();
         world.step();
         // if ((int)(world.get_time() * world.get_tick_rate()) % 10 == 0)
         // usleep(5000); //.05s
@@ -282,8 +299,12 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Viewer &viewer, Kilosim::Logger 
     }
 }
 
-void sweep_sim(Kilosim::World &world, Kilosim::Viewer &viewer, Kilosim::Logger &logger, Kilosim::ConfigParser &config)
+void sweep_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigParser &config)
 {
+    // Kilosim::Viewer viewer(world, 1200);
+    // viewer.set_show_network(true);
+    // viewer.set_show_tags(true);
+
     int num_robots = config.get("num_robots");
     std::string end_condition = config.get("end_condition");
     int end_val = config.get("end_val");
@@ -324,7 +345,7 @@ void sweep_sim(Kilosim::World &world, Kilosim::Viewer &viewer, Kilosim::Logger &
     while (!is_finished(world, robots, end_condition, end_val) &&
            world.get_tick() <= max_duration)
     {
-        viewer.draw();
+        // viewer.draw();
         world.step();
         // usleep(100000); //.1s
     }
@@ -360,7 +381,7 @@ int main(int argc, char *argv[])
                                          "_oct=" + std::to_string(env_octaves) + ".png";
         // const std::string img_filename = img_dir + "/img_oct=" + std::to_string(env_octaves) +
         //                                  "_" + trial_str + ".png";
-        std::cout << img_filename << std::endl;
+        // std::cout << img_filename << std::endl;
 
         // Create 3m x 3m world (no background image, for now)
         Kilosim::World world(
@@ -368,20 +389,18 @@ int main(int argc, char *argv[])
         );
         world.set_comm_rate(1);
 
-        Kilosim::Viewer viewer(world, 1200);
-        // viewer.set_show_network(true);
-        // viewer.set_show_tags(true);
-
-        Kilosim::Logger logger(world, "data.h5", trial, true);
+        // Create log file
+        std::string log_filename = (std::string)config.get("log_dir") + "data.h5";
+        Kilosim::Logger logger(world, log_filename, trial, true);
 
         // Run the right simulation
         if (movement_type == "hybrid")
         {
-            hybrid_sim(world, viewer, logger, config);
+            hybrid_sim(world, logger, config);
         }
         else if (movement_type == "sweep")
         {
-            sweep_sim(world, viewer, logger, config);
+            sweep_sim(world, logger, config);
         }
 
         // These are things that are only logged once, at the end of the experiment!
