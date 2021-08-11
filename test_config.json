@@ -21,7 +21,6 @@
     "gradient_weight": 10,
     "pso_step_interval": 25,
     "pso_inertia": 1.2,
-    "pso_self_weight": 0.025,
-    "pso_group_weight": 0.025,
+    "pso_weights": 0.025,
     "log_dir": "../data/"
 }

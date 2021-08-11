@@ -294,8 +294,8 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
         robots[n]->lj_epsilon = config.get("lj_epsilon");
         robots[n]->lj_gamma = config.get("lj_gamma");
         robots[n]->boids_step_interval = config.get("boids_step_interval");
-        robots[n]->pso_self_weight = config.get("pso_self_weight");
-        robots[n]->pso_group_weight = config.get("pso_group_weight");
+        robots[n]->pso_self_weight = pso_self_weight;
+        robots[n]->pso_group_weight = pso_group_weight;
     }
     // sleep(2);
     while (!is_finished(world, robots, end_condition, end_val) &&
