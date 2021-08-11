@@ -113,8 +113,10 @@ def gen_configs(src_yml: str, out_filename: str,
     # The others are figured out dynamically, but putting them here helps for analysis
     vary_params_shallow = [p for p in vary_params if '/' not in p]
     vary_params_deep = [p for p in vary_params if '/' in p]
-    data_dir_base = src_config['data_dir_base']
+    data_dir_base = os.path.expanduser(src_config['data_dir_base'])
     vary_param_dict = {var: src_config[var] for var in vary_params_shallow}
+
+    print('Data base directory:', data_dir_base)
 
     # Cross product of all varied parameters
     all_conditions = list(product_dict(**vary_param_dict))
