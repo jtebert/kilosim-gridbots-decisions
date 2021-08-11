@@ -13,6 +13,8 @@ import subprocess
 import glob
 import multiprocessing
 import json
+import time
+import datetime
 
 import yaml
 import numpy as np
@@ -97,7 +99,8 @@ def gen_configs(src_yml: str, out_filename: str,
         contain the names of the directories that were created
     descriptive_folders : bool
         Whether to use descriptive subfolders for the generated configs (defaults to False).
-        If true, the subfolder names will be the concatenation of all of the varied parameter names and values.
+        If true, the subfolder names will be the concatenation of all of the varied parameter names
+        and values.
         If false, the subfolder names will be numerically indexed.
     """
     with open(src_yml) as f:
@@ -157,13 +160,14 @@ def gen_configs(src_yml: str, out_filename: str,
 
     if descriptive_folders:
         data_dirs = [os.path.join(data_dir_base,
-                                '-'.join(f'{k}={format_value(v)}' for k, v in config.items()))
-                    for config in all_conditions]
+                                  '-'.join(f'{k}={format_value(v)}' for k, v in config.items()))
+                     for config in all_conditions]
     else:
         # Number the directories
         num_dirs = len(all_conditions)
-        zlen = len(str(num_dirs))
-        data_dirs = [os.path.join(data_dir_base, f'params-{str(i).zfill(zlen)}') for i in range(num_dirs)]
+        z_len = len(str(num_dirs))
+        data_dirs = [os.path.join(data_dir_base, f'params-{str(i).zfill(z_len)}')
+                     for i in range(num_dirs)]
 
     print(f'Generating {len(all_conditions)} conditions...')
 
@@ -303,6 +307,65 @@ def run_group_sequential(exec_filename: str, dirs_filename: str):
         # subprocess.call(['python', exec_filename, config_file])
 
 
+def check_progress(dir: str, num_splits: int, num_cores: int):
+    """Check how much of the parameter sweep has been run so far.
+
+    This uses checking the number of files in the directory to check whether a
+    condition has been started yet.
+
+    Parameters
+    ----------
+    dir : str
+        Location to check for subfolders and data files
+    num_splits : int
+        Number of sections/chunks the runs are split into
+    num_cores : int
+        Number of cores used to run the simulations on this computer
+    """
+    # There's one file (config.json) in each subfolder before anything is run
+    # subsolders = [d for d in os.listdir(dir) if os.path.isdir(os.path.join(dir, d))]
+    subsolders = [d for d in os.listdir(dir) if os.path.isdir(os.path.join(dir, d))]
+    total_dirs = len(subsolders)
+    started_dirs = 0
+    completed_dirs = 0
+    last_data_time = np.nan
+    first_data_time = np.nan
+    for subdir in subsolders:
+        # Get the time that data.h5 was last modified
+        data_file = os.path.join(dir, subdir, 'data.h5')
+        if os.path.exists(data_file):
+            data_mod_time = os.path.getmtime(data_file)
+            data_create_time = os.path.getctime(data_file)
+            last_data_time = np.nanmax([data_mod_time, last_data_time])
+            first_data_time = np.nanmin([data_create_time, first_data_time])
+            started_dirs += 1
+            # Consider a file completed if it hasn't been modifed in the last 5 minutes
+            if (time.time() - data_mod_time) >= 300:
+                completed_dirs += 1
+
+    percent_started = 100*started_dirs/total_dirs
+    print(f'{started_dirs} of {total_dirs} subdirectories started ({percent_started:.2f}%)')
+    completed_count = max(0, started_dirs-num_cores, completed_dirs)
+    percent_done = 100 * completed_count/total_dirs
+    print(f'{completed_count} of {total_dirs} subdirectories done ({percent_done:.2f}%)')
+
+    # Roughly estimate time remaining
+    time_elapsed = last_data_time - first_data_time
+    time_elapsed_dt = datetime.timedelta(seconds=time_elapsed)
+    # time_remaining = time_elapsed / (started_dirs / num_splits) * (num_cores - started_dirs)
+    # Time per file (don't include currently edited)
+    # all times are in seconds (since epoch)
+    # completed_dirs = max(started_dirs - num_cores, 0)  # can't be negative
+    if completed_count != 0:
+        time_per_file = time_elapsed / completed_count
+        total_time = time_per_file * total_dirs
+        time_remaining = total_time - time_elapsed
+        completion_time = first_data_time + total_time
+        print(f'Time elapsed: {time_elapsed_dt}')
+        print(f'Time remaining: {datetime.timedelta(seconds=time_remaining)}')
+        print(f'Expected completion: {time.ctime(completion_time)}')
+
+
 if __name__ == "__main__":
 
     DATA_DIRS_FILE_BASE = 'data_dirs'
@@ -317,6 +380,24 @@ if __name__ == "__main__":
         help="Choose whether to generate a set of configurations for a " +
         "parameter sweep, split such a list of configurations, or run all the" +
         " configurations in a given file."
+    )
+
+    progress_parser = subparser.add_parser("progress")
+    progress_parser.set_defaults(cmd='progress')
+    progress_parser.add_argument(
+        "dir",
+        type=str,
+        help="Directory to look for progress in"
+    )
+    progress_parser.add_argument(
+        "num_splits",
+        type=int,
+        help="Number of sections/chunks to split the parameter sweep into"
+    )
+    progress_parser.add_argument(
+        "num_cores",
+        type=int,
+        help="Number of cores running on this machine for the sweep"
     )
 
     gen_parser = subparser.add_parser("generate")
@@ -341,9 +422,10 @@ if __name__ == "__main__":
     )
     gen_parser.add_argument(
         "--descriptive_folders",
-        default=False,
+        default=True,
         action='store_true',
-        help='Whether to use descriptive names for the folders (ie, including varied parameter names/values)'
+        help='Whether to use descriptive names for the folders' +
+             ' (ie, including varied parameter names/values)'
     )
 
     split_parser = subparser.add_parser("split")
@@ -428,6 +510,9 @@ if __name__ == "__main__":
         elif args.cmd == 'split_run':
             print(f'Splitting "{args.infile}" into {args.num_threads} and running all')
             run_all_self_split(args.exec_file, args.infile, args.num_threads)
+
+        elif args.cmd == 'progress':
+            check_progress(args.dir, args.num_splits, args.num_cores)
 
         else:
             print("Invalid command. Choose 'generate', 'split', 'run', or 'split_run'")

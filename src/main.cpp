@@ -253,9 +253,23 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
     int end_val = config.get("end_val");
     unsigned long int max_duration = config.get("max_trial_duration");
 
-    std::vector<Kilosim::HybridBot *> robots(num_robots);
+    // This accounts for possibility of different ways of doing weights
+    double pso_self_weight;
+    double pso_group_weight;
+    try
+    {
+        // Try to use the same weight for own/others' observations
+        pso_self_weight = config.get("pso_weights");
+        pso_group_weight = config.get("pso_weights");
+    }
+    catch (std::exception &e)
+    {
+        // Use different weights for own/others' observations
+        pso_self_weight = config.get("pso_self_weight");
+        pso_group_weight = config.get("pso_group_weight");
+    }
 
-    int i = 0;
+    std::vector<Kilosim::HybridBot *> robots(num_robots);
     for (int n = 0; n < num_robots; n++)
     {
         robots[n] = new Kilosim::HybridBot();
@@ -268,8 +282,6 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
         robots[n]->end_val = config.get("end_val");
         robots[n]->max_speed = config.get("max_speed");
         robots[n]->pso_inertia = config.get("pso_inertia");
-        robots[n]->pso_self_weight = config.get("pso_self_weight");
-        robots[n]->pso_group_weight = config.get("pso_group_weight");
         robots[n]->gradient_weight = config.get("gradient_weight");
         // comm_range is used by comm_criteria to determine communication range
         // In config, comm_range is in grid cells (as dimension)
@@ -282,12 +294,10 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
         robots[n]->lj_epsilon = config.get("lj_epsilon");
         robots[n]->lj_gamma = config.get("lj_gamma");
         robots[n]->boids_step_interval = config.get("boids_step_interval");
-        // TEMPORARY
-        // robots[n]->velocity = {(double)i, (double)i * 2};
-        i++;
+        robots[n]->pso_self_weight = config.get("pso_self_weight");
+        robots[n]->pso_group_weight = config.get("pso_group_weight");
     }
     // sleep(2);
-    // while (world.get_time() < trial_duration * world.get_tick_rate())
     while (!is_finished(world, robots, end_condition, end_val) &&
            world.get_tick() <= max_duration)
     {
@@ -387,7 +397,11 @@ int main(int argc, char *argv[])
         Kilosim::World world(
             world_width, world_height, img_filename // World image
         );
-        world.set_comm_rate(1);
+
+        // Leaving this out keeps the default communication rate of every 3 ticks
+        // Hopefully this will speed everything up without damaging results
+        // world.set_comm_rate(1);
+        world.set_comm_rate(2);
 
         // Create log file
         std::string log_filename = (std::string)config.get("log_dir") + "data.h5";

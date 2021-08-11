@@ -11,12 +11,12 @@ world_grid_width: 384
 world_grid_height: 384
 
 # config.json files generated from this will go in this directory
-data_dir_base: 'test_out'
+data_dir_base: '~/grid-decisions-data/post_decision_sweep'
 
 # Range of trial numbers to run (inclusive on both ends)
 start_trial: 1
 num_trials: 100
-max_trial_duration: 50000
+max_trial_duration: 15000
 # Path is relative to directory where code is run (typically project root)
 img_dir: "imgs"
 # env_img_pattern: 'imgs/img_oct={octaves}_{trial:03d}.png'
@@ -69,5 +69,5 @@ movement_type: ['hybrid', 'sweep']
 movement_type_params:
   hybrid: # Add parameters for table timeout/variable communication range
     gradient_weight: 0, 8, 32
-    rx_table_timeout: [128, 256, 512, 1024] # num. ticks after which old rx hop counts are purged
+    rx_table_timeout: [256, 512, 1024] # num. ticks after which old rx hop counts are purged
     post_decision_movement: ['hybrid', 'flock', 'disperse']

@@ -4,6 +4,10 @@ lib/
 bin/
 imgs/
 test_out/
+pre_test_out/
+post_test_out/
+pre_decision_sweep/
+post_decision_sweep/
 test.json
 data_dirs.txt
 **/data.h5
