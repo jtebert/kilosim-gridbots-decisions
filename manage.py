@@ -15,6 +15,7 @@ import multiprocessing
 import json
 import time
 import datetime
+from typing import List, Optional
 
 import yaml
 import numpy as np
@@ -238,7 +239,8 @@ def split_data_dirs(filename, num_threads):
             f.write('\n'.join(group))
 
 
-def run_all_groups(exec_filename: str, dirs_filename_glob: str):
+def run_groups(exec_filename: str, dirs_filename_glob: str,
+               split_nums: Optional[List[int]] = None,):
     """Run all of the data_dirs splits in parallel. It will use as many threads as there are files.
 
     Parameters
@@ -248,7 +250,12 @@ def run_all_groups(exec_filename: str, dirs_filename_glob: str):
     dirs_filename_glob : str
         Format of the data_dirs splits, eg "data_dirs_split_*.txt"
     """
-    data_dirs_filenames = glob.glob(dirs_filename_glob)
+    if split_nums is None:
+        data_dirs_filenames = glob.glob(dirs_filename_glob)
+    else:
+        # Use the split numbers to get the filenames
+        data_dirs_filenames = [dirs_filename_glob.replace('*', str(num)) for num in split_nums]
+    print(data_dirs_filenames)
     input_pairs = [(exec_filename, f) for f in data_dirs_filenames]
     with multiprocessing.Pool(len(data_dirs_filenames)) as p:
         p.starmap(run_group_sequential, input_pairs)
@@ -448,7 +455,8 @@ if __name__ == "__main__":
         help='Path to the executable main experiment file to run'
     )
     run_parser.add_argument(
-        "split_num",
+        "split_nums",
+        nargs="+",
         help="Run all the trials in infile with #=split_num. Use 'all' to run all split files")
     run_parser.add_argument(
         '-i', '--infile',
@@ -494,18 +502,20 @@ if __name__ == "__main__":
             split_data_dirs(args.infile, args.num_splits)
 
         elif args.cmd == 'run':
+            if args.split_nums[0] == 'all':
+                split_nums = 'all'
+            else:
+                split_nums = [int(n) for n in args.split_nums]
+
             if '#' not in args.infile:
                 print('ERROR: Split filename must contain "#" to indicate the numbers.')
-                exit(1)
-            if args.split_num == 'all':
-                filename_glob = args.infile.replace('#', '*')
+            filename_glob = args.infile.replace('#', '*')
+            if split_nums == 'all':
                 print("Running all", filename_glob)
-                run_all_groups(args.exec_file, filename_glob)
+                run_groups(args.exec_file, filename_glob)
             else:
-                filename = args.infile.replace('#', args.split_num)
-                filename = filename
-                print("Running", filename)
-                run_group_sequential(args.exec_file, filename)
+                print(f"Running {len(split_nums)} groups: {split_nums}")
+                run_groups(args.exec_file, filename_glob, split_nums)
 
         elif args.cmd == 'split_run':
             print(f'Splitting "{args.infile}" into {args.num_threads} and running all')
