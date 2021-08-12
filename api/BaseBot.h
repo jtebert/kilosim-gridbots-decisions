@@ -104,6 +104,7 @@ namespace Kilosim
                     }
                 }
             }
+            return visit_count;
         }
 
         // Check if the robot has returned home (ie full simulation is complete for this run)

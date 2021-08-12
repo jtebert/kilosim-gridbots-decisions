@@ -367,7 +367,7 @@ def check_progress(dir: str, num_splits: int, num_cores: int):
     # completed_dirs = max(started_dirs - num_cores, 0)  # can't be negative
     if completed_count != 0:
         time_per_file = time_elapsed / completed_count
-        total_time = time_per_file * total_dirs
+        total_time = time_per_file * total_dirs * (num_cores/num_splits)
         time_remaining = total_time - time_elapsed
         completion_time = first_data_time + total_time
         print(f'Time elapsed: {time_elapsed_dt}')
