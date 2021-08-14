@@ -406,6 +406,7 @@ int main(int argc, char *argv[])
         // Create log file
         std::string log_filename = (std::string)config.get("log_dir") + "data.h5";
         Kilosim::Logger logger(world, log_filename, trial, false);
+        logger.log_config(config);
 
         // Run the right simulation
         if (movement_type == "hybrid")
