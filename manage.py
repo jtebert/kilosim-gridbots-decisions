@@ -16,6 +16,7 @@ import json
 import time
 import datetime
 from typing import List, Optional
+import random
 
 import yaml
 import numpy as np
@@ -210,7 +211,7 @@ def gen_configs(src_yml: str, out_filename: str,
     print(f'Skipped {len(all_conditions)-len(new_data_dirs)} existing configurations')
 
 
-def split_data_dirs(filename, num_threads):
+def split_data_dirs(filename, num_threads, shuffle):
     """
     Split an existing text file of directories (each for one set of conditions)
     into multiple text files to run as different processes.
@@ -225,8 +226,17 @@ def split_data_dirs(filename, num_threads):
         Number of files to split the data file into. If this is being run on a
         single computer, this should be no more than the number of physical
         cores on the machine.
+    shuffle : bool
+        Whether to shuffle the data directories before splitting.
     """
     data_dirs = get_dirs(filename)
+
+    if shuffle:
+        # Shuffle the data directories
+        # This seeds it the same way every time. It doesn't need to be random.
+        # Consistent is better so you get the same splits across machines.
+        random.Random(4).shuffle(data_dirs)
+
     out_dir = os.path.dirname(filename)
 
     filename_base = os.path.splitext(filename)[0]
@@ -449,6 +459,12 @@ if __name__ == "__main__":
         type=str,
         default=DATA_DIRS_FILENAME,
         help="Name of input file you want to split")
+    split_parser.add_argument(
+        "-s", "--shuffle",
+        default=True,
+        action='store_true',
+        help="Whether to shuffle the input directories before splitting"
+    )
 
     run_parser = subparser.add_parser("run")
     run_parser.set_defaults(cmd='run')
@@ -501,7 +517,7 @@ if __name__ == "__main__":
 
         elif args.cmd == 'split':
             print(f'Splitting {args.infile} into [{args.num_splits}] parts')
-            split_data_dirs(args.infile, args.num_splits)
+            split_data_dirs(args.infile, args.num_splits, args.shuffle)
 
         elif args.cmd == 'run':
             if args.split_nums[0] == 'all':
