@@ -55,6 +55,9 @@ namespace Kilosim
         // GRADIENT DESCENT parameters
         double gradient_weight;
 
+        // POST-DECISION MOVEMENT OPTIONS
+        std::string post_decision_movement;
+
         // BOIDS PARMETERS
         double lj_a;
         double lj_b;
@@ -174,9 +177,9 @@ namespace Kilosim
                 update_mins(pos_samples);
                 if (tick % pso_step_interval == 1)
                 {
-                    std::vector<double> new_pos_vel = pso_velocity_update(pos_samples);
-                    target_pos = {new_pos_vel[0], new_pos_vel[1]};
-                    velocity = set_pso_path(target_pos, {new_pos_vel[2], new_pos_vel[3]});
+                    pos_vel new_pos_vel = pso_velocity_update(pos_samples);
+                    target_pos = new_pos_vel.pos;
+                    velocity = set_pso_path(target_pos, new_pos_vel.vel);
                 }
                 if (is_time_to_go_home())
                 {
@@ -194,28 +197,47 @@ namespace Kilosim
                 // Share the decision with neighbors (aka do Boids)
                 process_msgs();
                 update_mins(pos_samples);
-                if ((int)get_tick() % boids_step_interval == 2)
+
+                // Various post-decision movement options
+                if (post_decision_movement == "hybrid")
                 {
-                    // Boids!
+                    // Keep doing the same thing as before making decision
+                    // (copied from DO_PSO state)
+                    if ((int)get_tick() % pso_step_interval == 2)
+                    {
+                        pos_vel new_pos_vel = pso_velocity_update(pos_samples);
+                        target_pos = new_pos_vel.pos;
+                        velocity = set_pso_path(target_pos, new_pos_vel.vel);
+                    }
+                }
+                else if ((int)get_tick() % boids_step_interval == 2)
+                {
                     // Use neighbor pos + velocity SINCE LAST BOIDS UPDATE
                     std::map<uint16_t, pos_vel> new_neighbor_pos_vel;
-                    // std::map<Pos, std::vector<double>> new_neighbor_pos_vel;
                     int curr_tick = get_tick();
-                    // printf("--------------------------------------------------------\n");
                     for (auto &n : neighbor_table)
                     {
-                        // if (n.tick_added >= curr_tick - boids_step_interval && !n.from_neighbor)
                         if (n.tick_added >= curr_tick - boids_step_interval)
                         {
                             new_neighbor_pos_vel.insert({n.id, {{n.curr_pos_x, n.curr_pos_y}, {n.curr_vel_x, n.curr_vel_y}}});
                         }
                     }
-                    // print_neighbor_array();
-
-                    std::vector<double> new_pos_vel = boids_velocity_update(new_neighbor_pos_vel);
-                    target_pos = {new_pos_vel[0], new_pos_vel[1]};
-                    velocity = set_pso_path(target_pos, {new_pos_vel[2], new_pos_vel[3]}, boids_step_interval);
+                    if (post_decision_movement == "flock")
+                    {
+                        // Use Boids-based flocking
+                        pos_vel new_pos_vel = boids_velocity_update(new_neighbor_pos_vel);
+                        target_pos = new_pos_vel.pos;
+                        velocity = set_pso_path(target_pos, new_pos_vel.vel, boids_step_interval);
+                    }
+                    else if (post_decision_movement == "disperse")
+                    {
+                        // Use just the LJ component of Boids, but with big target distance
+                        pos_vel new_pos_vel = dispersion_velocity_update(new_neighbor_pos_vel);
+                        target_pos = new_pos_vel.pos;
+                        velocity = set_pso_path(target_pos, new_pos_vel.vel, boids_step_interval);
+                    }
                 }
+
                 // std::cout << get_tick() << " " << id << " (" << get_pos().x << "," << get_pos().y << "): " << velocity[0] << "," << velocity[1] << std::endl;
                 // This state is only used when end_val != time, so don't need to check is_time_to_go_home()
                 if (all_neighbors_decided())
@@ -428,7 +450,7 @@ namespace Kilosim
         // MOVEMENT
         //----------------------------------------------------------------------
 
-        std::vector<double> pso_velocity_update(std::map<Pos, double> samples)
+        pos_vel pso_velocity_update(std::map<Pos, double> samples)
         {
             // Do an update of (PSO + gradient descent)
             // returns the new velocity AND updates target position (target_pos)
@@ -458,7 +480,7 @@ namespace Kilosim
             Pos curr_pos = get_pos();
             std::vector<int> v_curr_pos = {curr_pos.x, curr_pos.y};
 
-            // Compute PSO
+            // Compute PSO (across 2 dimensions)
             for (auto i = 0; i < 2; i++)
             {
                 double inertia = pso_inertia + velocity[i];
@@ -476,16 +498,27 @@ namespace Kilosim
             double vel_magnitude = sqrt(pow(new_vel[0], 2) + pow(new_vel[1], 2));
 
             new_vel = normalize_velocity(new_vel);
+            Pos ret_pos = Pos(new_pos[0], new_pos[1]);
 
-            return {new_pos[0], new_pos[1], new_vel[0], new_vel[1]};
+            return {ret_pos, new_vel};
         }
 
-        std::vector<double> dispersion_velocity_update(std::map<uint16_t, pos_vel> neighbor_pos_vel)
+        pos_vel dispersion_velocity_update(std::map<uint16_t, pos_vel> neighbor_pos_vel)
         {
             // Velocity update based on dispersion: get the average velocity of all neighbors and go the opposite direction
+
+            // This sets the comm_range to 10x the default comm_range in grid space!!
+            double grid_comm_range = comm_range;
+            std::vector<double> lj_acc = lennard_jones_potential(neighbor_pos_vel, grid_comm_range);
+            // lj_acc[0] *= mass;
+            std::vector<double> new_vel = normalize_velocity(lj_acc);
+            Pos curr_pos = get_pos();
+            Pos target = {curr_pos.x + new_vel[0] * boids_step_interval,
+                          curr_pos.y + new_vel[1] * boids_step_interval};
+            return {target, new_vel};
         }
 
-        std::vector<double> boids_velocity_update(std::map<uint16_t, pos_vel> neighbor_pos_vel)
+        pos_vel boids_velocity_update(std::map<uint16_t, pos_vel> neighbor_pos_vel)
         {
             // This is Boids-based flocking algorithm for the robots to used once they've made a
             // decision. At this point, they'll spread their information fastest if they
@@ -568,13 +601,14 @@ namespace Kilosim
 
             // This is equivalent to setting a step_interval of 1 (ie update this every tick)
             Pos curr_pos = get_pos();
-            std::vector<double> target = {curr_pos.x + new_vel[0] * boids_step_interval,
-                                          curr_pos.y + new_vel[1] * boids_step_interval};
+            Pos target = {curr_pos.x + new_vel[0] * boids_step_interval,
+                          curr_pos.y + new_vel[1] * boids_step_interval};
 
             // std::cout << "Target: " << target[0] << ", " << target[1] << std::endl;
             // std::cout << "Velocity: " << new_vel[0] << ", " << new_vel[1] << std::endl;
+            // pos_vel ret(target, new_vel);
 
-            return {target[0], target[1], new_vel[0], new_vel[1]};
+            return {target, new_vel};
         }
 
         std::vector<double> lennard_jones_potential(std::map<uint16_t, pos_vel> neighbor_pos_vel, double target_dist)

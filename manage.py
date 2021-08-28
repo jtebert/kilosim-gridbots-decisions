@@ -342,16 +342,20 @@ def check_progress(dir: str, num_splits: int, num_cores: int):
         Number of cores used to run the simulations on this computer
     """
     # There's one file (config.json) in each subfolder before anything is run
-    # subsolders = [d for d in os.listdir(dir) if os.path.isdir(os.path.join(dir, d))]
-    subsolders = [d for d in os.listdir(dir) if os.path.isdir(os.path.join(dir, d))]
-    total_dirs = len(subsolders)
+    # subfolders = [d for d in os.listdir(dir) if os.path.isdir(os.path.join(dir, d))]
+    subfolders = [d for d in os.listdir(dir) if os.path.isdir(os.path.join(dir, d))]
+    total_dirs = len(subfolders)
     started_dirs = 0
     completed_dirs = 0
     last_data_time = np.nan
     first_data_time = np.nan
-    for subdir in subsolders:
+    print(len(subfolders), 'folders found')
+    print('[' + '-'*79 + ']')
+    for ind, subdir in enumerate(subfolders):
         # Get the time that data.h5 was last modified
         data_file = os.path.join(dir, subdir, 'data.h5')
+        if int(ind % int(total_dirs/80)) == 0:
+            print('.', end="", flush=True)
         if os.path.exists(data_file):
             data_mod_time = os.path.getmtime(data_file)
             data_create_time = os.path.getctime(data_file)
@@ -361,6 +365,7 @@ def check_progress(dir: str, num_splits: int, num_cores: int):
             # Consider a file completed if it hasn't been modifed in the last 5 minutes
             if (time.time() - data_mod_time) >= 300:
                 completed_dirs += 1
+    print()
 
     percent_started = 100*started_dirs/total_dirs
     print(f'{started_dirs} of {total_dirs} subdirectories started ({percent_started:.2f}%)')
@@ -381,6 +386,7 @@ def check_progress(dir: str, num_splits: int, num_cores: int):
         time_remaining = total_time - time_elapsed
         completion_time = first_data_time + total_time
         print(f'Time elapsed: {time_elapsed_dt}')
+        print(f'Last edited time: {time.ctime(last_data_time)}')
         print(f'Time remaining: {datetime.timedelta(seconds=time_remaining)}')
         print(f'Expected completion: {time.ctime(completion_time)}')
 

@@ -275,12 +275,12 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
         robots[n] = new Kilosim::HybridBot();
         world.add_robot(robots[n]);
         robots[n]->robot_init(0, 0, 0);
-        robots[n]->pso_step_interval = config.get("pso_step_interval");
-        robots[n]->boids_step_interval = config.get("boids_step_interval");
-        robots[n]->start_interval = (int)config.get("pso_step_interval") * 3;
-        robots[n]->end_condition = config.get("end_condition");
-        robots[n]->end_val = config.get("end_val");
         robots[n]->max_speed = config.get("max_speed");
+        // PSO/GD hybrid pre-decision movement
+        robots[n]->pso_step_interval = config.get("pso_step_interval");
+        robots[n]->pso_self_weight = pso_self_weight;
+        robots[n]->pso_group_weight = pso_group_weight;
+        robots[n]->start_interval = (int)config.get("pso_step_interval") * 3;
         robots[n]->pso_inertia = config.get("pso_inertia");
         robots[n]->gradient_weight = config.get("gradient_weight");
         // comm_range is used by comm_criteria to determine communication range
@@ -288,18 +288,21 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
         robots[n]->comm_range = (int)config.get("comm_range") * 10;
         robots[n]->num_neighbors = num_robots - 1;
         robots[n]->rx_table_timeout = config.get("rx_table_timeout");
+        // End conditions
+        robots[n]->end_condition = config.get("end_condition");
+        robots[n]->end_val = config.get("end_val");
+        // Post-decision movement options
+        // robots[n]->post_decision_movement = config.get("post_decision_movement");
         // Boids parameters
         robots[n]->lj_a = config.get("lj_a");
         robots[n]->lj_b = config.get("lj_b");
         robots[n]->lj_epsilon = config.get("lj_epsilon");
         robots[n]->lj_gamma = config.get("lj_gamma");
         robots[n]->boids_step_interval = config.get("boids_step_interval");
-        robots[n]->pso_self_weight = pso_self_weight;
-        robots[n]->pso_group_weight = pso_group_weight;
     }
     // sleep(2);
     while (!is_finished(world, robots, end_condition, end_val) &&
-           world.get_tick() <= max_duration)
+           world.get_tick() < max_duration)
     {
         // viewer.draw();
         world.step();
@@ -353,7 +356,7 @@ void sweep_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigPa
     }
     // sleep(2);
     while (!is_finished(world, robots, end_condition, end_val) &&
-           world.get_tick() <= max_duration)
+           world.get_tick() < max_duration)
     {
         // viewer.draw();
         world.step();
@@ -405,10 +408,13 @@ int main(int argc, char *argv[])
 
         // Create log file
         std::string log_filename = (std::string)config.get("log_dir") + "data.h5";
-        Kilosim::Logger logger(world, log_filename, trial, false);
+        // False = don't overwrite logs
+        Kilosim::Logger logger(world, log_filename, trial, true);
+        // Kilosim::Logger logger(world, log_filename, trial, false);
         logger.log_config(config);
 
         // Run the right simulation
+        std::cout << "Starting trial " << trial << " (" << config.get("log_dir") << ")" << std::endl;
         if (movement_type == "hybrid")
         {
             hybrid_sim(world, logger, config);
