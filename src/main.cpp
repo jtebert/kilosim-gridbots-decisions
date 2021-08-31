@@ -197,23 +197,30 @@ bool is_finished(Kilosim::World &world, std::vector<Kilosim::HybridBot *> robots
     return true;
 }
 
+bool all_robots_home(std::vector<Kilosim::SweepBot *> &robots)
+{
+    // Check if all robots have returned to the origin
+    for (auto robot : robots)
+    {
+        if (!robot->is_home())
+        {
+            // At least one robot is not home (ie finished)
+            return false;
+        }
+    }
+    return true;
+}
+
 bool is_finished(Kilosim::World &world, std::vector<Kilosim::SweepBot *> robots, std::string end_condition, int end_val)
 {
     // HACKY: This is just a copy of the HybridBot version
     if (end_condition == "time")
     {
-        return world.get_time() * world.get_tick_rate() >= end_val;
+        return world.get_time() * world.get_tick_rate() >= end_val || all_robots_home(robots);
     }
     else if (end_condition == "value")
     {
-        for (auto robot : robots)
-        {
-            if (!robot->is_home())
-            {
-                // At least one robot is not home (ie finished)
-                return false;
-            }
-        }
+        return all_robots_home(robots);
     }
     // Else no robots that *didn't* meet the end condition
     return true;
