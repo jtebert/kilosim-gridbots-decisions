@@ -26,6 +26,8 @@ namespace Kilosim
         // Right now, its purpose is to provide a common interface for the aggregator functions to cast to, to avoid re-implementing the functions for each bot.
 
     public:
+        int neighbor_count = 0; // number of neighbors heard from on the current tick
+
         // DECISION-MAKING parameters
         std::string end_condition; // "value" or "time"
         // Threshold for ending (declaring target found)
@@ -94,16 +96,28 @@ namespace Kilosim
         {
             // Get the count of cells visited (aka the total distance that the robot has traveled)
             int visit_count = 0;
-            for (auto row = m_map.rbegin(); row != m_map.rend(); row++)
+            for (auto &row : m_map)
             {
-                for (auto val = row->begin(); val != row->end(); val++)
+                for (auto &val : row)
                 {
-                    if (*val != -1)
+                    if (val != -1)
                     {
-                        visit_count += *val;
+                        visit_count += val;
                     }
+                    // std::cout << val << " ";
                 }
+                // std::cout << std::endl;
             }
+            // for (auto row = m_map.rbegin(); row != m_map.rend(); row++)
+            // {
+            //     for (auto val = row->begin(); val != row->end(); val++)
+            //     {
+            //         if (*val != -1)
+            //         {
+            //             visit_count += *val;
+            //         }
+            //     }
+            // }
             return visit_count;
         }
 
@@ -180,11 +194,11 @@ namespace Kilosim
             }
         }
 
-        void process_msgs()
+        int process_msgs()
         {
             // Process all messages since the last tick
             // Add each one to the neighbor table
-            // RETURNS: map<Pos, Pos> of {position, velocity} of all neighbors heard from in this tick
+            // RETURNS: number of neighbors heard from in this tick
             // (this is used for Boids velocity updates)
 
             std::vector<json> new_msgs = get_msg();
@@ -209,6 +223,7 @@ namespace Kilosim
                     }
                 }
             } // end msg loop
+            return new_msgs.size();
         }
 
         void add_neighbor(json msg, bool from_table = false)

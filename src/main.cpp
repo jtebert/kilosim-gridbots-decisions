@@ -13,13 +13,25 @@ std::vector<double> decision_states(std::vector<Kilosim::Robot *> &robots)
 {
     // Get the current state of the robots' decisions. (undecided, self decided, all decided)
     // This is represented by the robot's m_state
-    std::vector<double> decision_states;
+    std::vector<double> decision_states(robots.size());
     for (auto i = 0ul; i < robots.size(); i++)
     {
         Kilosim::BaseBot *bot = (Kilosim::BaseBot *)robots[i];
         decision_states[i] = bot->get_state();
     }
     return decision_states;
+}
+
+std::vector<double> neighbor_count(std::vector<Kilosim::Robot *> &robots)
+{
+    // Get the number of neighbors each robot has heard from on this tick
+    std::vector<double> neighbor_count(robots.size());
+    for (auto i = 0ul; i < robots.size(); i++)
+    {
+        Kilosim::BaseBot *bot = (Kilosim::BaseBot *)robots[i];
+        neighbor_count[i] = bot->neighbor_count;
+    }
+    return neighbor_count;
 }
 
 std::vector<double> robot_coverage(std::vector<Kilosim::Robot *> &robots)
@@ -61,7 +73,7 @@ std::vector<double> collective_coverage(std::vector<Kilosim::Robot *> &robots)
     {
         Kilosim::BaseBot *bb = (Kilosim::BaseBot *)robots[i];
         std::vector<std::vector<int>> map = bb->get_map();
-        // On the first go, resize the map to match the robot's map and fill with zeros
+        // On the first go, resize the map to match the robot's map and fill with 0
         if (i == 0)
         {
             collective_map.resize(map.size(), std::vector<int>(map[0].size(), 0));
@@ -76,6 +88,7 @@ std::vector<double> collective_coverage(std::vector<Kilosim::Robot *> &robots)
                 {
                     // Only add 1 if the cell was observed
                     collective_map[j][k] += std::min(1, map[j][k]);
+                    collective_map[j][k] = 1;
                 }
             }
         }
@@ -250,7 +263,23 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
 
     int num_robots = config.get("num_robots");
     std::string end_condition = config.get("end_condition");
-    int end_val = config.get("end_val");
+    int end_val;
+    try
+    {
+        end_val = config.get("end_val");
+    }
+    catch (std::invalid_argument &e)
+    {
+        if (end_condition == "value")
+        {
+            end_val = config.get("end_condition_params").at("value").at("end_val");
+        }
+        else if (end_condition == "time")
+        {
+            end_val = config.get("end_condition_params").at("time").at("end_val");
+        }
+    }
+
     unsigned long int max_duration = config.get("max_trial_duration");
 
     // This accounts for possibility of different ways of doing weights
@@ -289,8 +318,8 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
         robots[n]->num_neighbors = num_robots - 1;
         robots[n]->rx_table_timeout = config.get("rx_table_timeout");
         // End conditions
-        robots[n]->end_condition = config.get("end_condition");
-        robots[n]->end_val = config.get("end_val");
+        robots[n]->end_condition = end_condition;
+        robots[n]->end_val = end_val;
         // Post-decision movement options
         // robots[n]->post_decision_movement = config.get("post_decision_movement");
         // Boids parameters
@@ -300,15 +329,19 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
         robots[n]->lj_gamma = config.get("lj_gamma");
         robots[n]->boids_step_interval = config.get("boids_step_interval");
     }
+
+    logger.add_aggregator("num_neighbors", neighbor_count);
+
     // sleep(2);
     while (!is_finished(world, robots, end_condition, end_val) &&
            world.get_tick() < max_duration)
     {
         // viewer.draw();
         world.step();
-        // if ((int)(world.get_time() * world.get_tick_rate()) % 10 == 0)
-        // usleep(5000); //.05s
-        // sleep(1);
+        if (world.get_tick() % 10 == 0)
+        {
+            logger.log_state();
+        }
     }
 }
 

@@ -1,9 +1,9 @@
 {
     "world_grid_width": 384,
     "world_grid_height": 384,
-    "start_trial": 5,
-    "num_trials": 10,
-    "max_trial_duration": 50000,
+    "start_trial": 1,
+    "num_trials": 1,
+    "max_trial_duration": 200,
     "img_dir": "../imgs",
     "max_speed": 25,
     "lj_a": 6,
@@ -11,10 +11,8 @@
     "lj_epsilon": 1,
     "lj_gamma": 1,
     "boids_step_interval": 16,
-    "end_condition": "time",
-    "end_val": 50000,
-    "movement_type": "sweep",
-    "num_robots": 4,
+    "movement_type": "hybrid",
+    "num_robots": 16,
     "comm_range": 32,
     "env_octaves": 3,
     "rx_table_timeout": 1024,
@@ -22,5 +20,11 @@
     "pso_step_interval": 25,
     "pso_inertia": 1.2,
     "pso_weights": 0.025,
-    "log_dir": "../data/"
+    "log_dir": "../data/",
+    "end_condition": "value",
+    "end_condition_params": {
+        "value": {
+            "end_val": 64
+        }
+    }
 }

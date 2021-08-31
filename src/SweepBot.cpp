@@ -48,6 +48,8 @@ namespace Kilosim
         // static const uint8_t HOME = 4;
 
         // std::vector<lil_neighbor_info_t> neighbor_table;
+        Pos prev_pos;
+        Pos curr_pos;
 
         void setup()
         {
@@ -57,11 +59,19 @@ namespace Kilosim
 
         void loop()
         {
+            // Update positions
+            prev_pos = curr_pos;
+            curr_pos = get_pos();
+            std::map<Pos, double> pos_samples = sample_around();
+            map_coverage(pos_samples);
+            if (prev_pos != curr_pos)
+            {
+                map_visited(get_pos());
+            }
             if (m_state == FOLLOW_PLAN)
             {
                 // Move to the next location in the path
                 // Observe here
-                std::map<Pos, double> pos_samples = sample_around();
                 // map_samples(pos_samples);
                 update_mins(pos_samples);
                 // This state is only used when end_val != time, so don't need to check is_time_to_go_home()
@@ -110,7 +120,7 @@ namespace Kilosim
 
             // Send message
             update_send_msg();
-            process_msgs();
+            neighbor_count = process_msgs();
         }
 
         void update_mins(std::map<Pos, double> pos_samples)

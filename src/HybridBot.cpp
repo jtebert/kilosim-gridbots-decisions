@@ -101,15 +101,6 @@ namespace Kilosim
         }
 
     private:
-        // States
-        // static const uint8_t INIT = 0;
-        // static const uint8_t SPREAD = 1;
-        // static const uint8_t DO_PSO = 2;
-        // static const uint8_t DECIDED = 3;
-        // static const uint8_t SEND_HOME = 4;
-        // static const uint8_t GO_HOME = 5;
-        // static const uint8_t HOME = 6;
-
         // Utility attributes/variables
         // Current (starting) angle and velocity
         double start_angle = uniform_rand_real(5 * PI / 180, 85 * PI / 180);
@@ -159,7 +150,7 @@ namespace Kilosim
             else if (m_state == SPREAD)
             {
                 // Spread away from the origin before doing PSO
-                process_msgs();
+                neighbor_count = process_msgs();
                 update_mins(pos_samples);
                 if (is_time_to_go_home())
                 {
@@ -173,7 +164,7 @@ namespace Kilosim
             else if (m_state == DO_PSO)
             {
                 int tick = get_tick();
-                process_msgs();
+                neighbor_count = process_msgs();
                 update_mins(pos_samples);
                 if (tick % pso_step_interval == 1)
                 {
@@ -195,7 +186,7 @@ namespace Kilosim
             else if (m_state == DECIDED)
             {
                 // Share the decision with neighbors (aka do Boids)
-                process_msgs();
+                neighbor_count = process_msgs();
                 update_mins(pos_samples);
 
                 // Various post-decision movement options
