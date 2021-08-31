@@ -522,7 +522,6 @@ namespace Kilosim
             if (neighbor_count > 0)
             {
                 // LENNARD-JONES FORCE FOR COHESION AND SEPARATION
-                // double mass = .0000001;
                 double grid_comm_range = comm_range / 10;
                 std::vector<double> lj_acc = lennard_jones_potential(neighbor_pos_vel, grid_comm_range * .75);
                 // lj_acc[0] *= mass;

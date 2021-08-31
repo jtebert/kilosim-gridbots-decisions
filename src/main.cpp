@@ -393,7 +393,7 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
     {
         // viewer.draw();
         world.step();
-        if (world.get_tick() % 10 == 0)
+        if (world.get_tick() % 25 == 0)
         {
             logger.log_state();
         }

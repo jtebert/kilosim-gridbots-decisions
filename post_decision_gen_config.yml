@@ -24,6 +24,7 @@ img_dir: "imgs"
 max_speed: 2 # virtual speed
 
 # PSO parameters (only in hybrid movement)
+# These were the best parameters selected from the pre-decision sweep
 pso_step_interval: 32 # ticks
 pso_inertia: 0.5
 pso_self_weight: 0.01
@@ -31,6 +32,7 @@ pso_group_weight: 0.01
 gradient_weight: 4
 
 # Boids parameters (only in hybrid movement)
+boids_step_interval: 8 # ticks
 lj_a: 12 # Lennard-Jones potential
 lj_b: 6 # Lennard-Jones potential
 lj_epsilon: 1
