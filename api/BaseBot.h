@@ -61,6 +61,12 @@ namespace Kilosim
             }
         }
 
+        std::vector<int> get_neighbors()
+        {
+            // Return a list of the IDs of all the neighbors heard from in this tick
+            return neighbor_id_list;
+        }
+
         int get_state()
         {
             // Get the robot's state, which tells where it is in the decision-making process
@@ -140,6 +146,7 @@ namespace Kilosim
         static const uint8_t WAIT = 8;
 
         std::vector<neighbor_info_t> neighbor_table;
+        std::vector<int> neighbor_id_list;
 
         //----------------------------------------------------------------------
         // MAPS
@@ -204,6 +211,8 @@ namespace Kilosim
             std::vector<json> new_msgs = get_msg();
 
             int curr_tick = get_tick();
+            // Clear the list of neighbors heard from
+            neighbor_id_list = {};
 
             for (auto m = 0ul; m < new_msgs.size(); m++)
             {
@@ -221,6 +230,8 @@ namespace Kilosim
                             add_neighbor(n, true);
                         }
                     }
+                    // Keep a list of the IDs of the neighbors heard from
+                    neighbor_id_list.push_back(msg.at("id"));
                 }
             } // end msg loop
             return new_msgs.size();

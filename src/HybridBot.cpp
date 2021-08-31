@@ -179,7 +179,6 @@ namespace Kilosim
                 else if (is_finished())
                 {
                     m_state = DECIDED;
-                    printf("decision finished\n");
                     set_led(0, 100, 0);
                 }
             }

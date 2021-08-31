@@ -3,7 +3,7 @@
     "world_grid_height": 384,
     "start_trial": 1,
     "num_trials": 1,
-    "max_trial_duration": 200,
+    "max_trial_duration": 1000,
     "img_dir": "../imgs",
     "max_speed": 25,
     "lj_a": 6,

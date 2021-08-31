@@ -5,9 +5,63 @@
 #include <kilosim/ConfigParser.h>
 #include <kilosim/Logger.h>
 
+#include <Eigen/Dense>
+#include <Eigen/Eigenvalues>
+
 #include <unistd.h>
 
+// using Eigen::MatrixXd;
+
 // AGGREGATORS
+
+std::vector<double> network_eigenvals(std::vector<Kilosim::Robot *> &robots)
+{
+    // Get the eigenvalues of the connectivity matrix for all of the robots
+
+    // Get the IDs of all robots
+    std::vector<int> robot_ids(robots.size());
+    for (int i = 0; i < robots.size(); i++)
+    {
+        robot_ids[i] = robots[i]->id;
+    }
+    // Initialize a 2D matrix with the number of robots
+    Eigen::MatrixXd connectivity_matrix = Eigen::MatrixXd::Zero(robots.size(), robots.size());
+    for (int i = 0; i < robots.size(); i++)
+    {
+        // From each robot, get a list of the neighbors it has heard from on this tick
+        Kilosim::BaseBot *bot = (Kilosim::BaseBot *)robots[i];
+        std::vector<int> neighbor_ids = bot->get_neighbors();
+        // Convert the map to a vector, sorted by neighbor ID (include self as 1!)
+        // All neighbors not heard from are 0; all neighbors heard from are 1
+        // std::vector<int> network_row(robots.size(), 0);
+        for (int j = 0; j < neighbor_ids.size(); j++)
+        {
+            // Find the index of the neighbor in the list of robot IDs
+            // (row order must match column order)
+            auto iter = std::find(robot_ids.begin(), robot_ids.end(), neighbor_ids[j]);
+            int neighbor_id_ind = iter - robot_ids.begin();
+            connectivity_matrix(i, neighbor_id_ind) = 1;
+        }
+        connectivity_matrix(i, i) = 1;
+    }
+    // Compute the eigenvalues of the matrix
+    Eigen::VectorXcd eivals = connectivity_matrix.eigenvalues();
+    // // Convert the eigenvalues to an std::vector for returning
+    // Convert all eigenvalues to real numbers. Those with an imaginary part are converted to nan
+    std::vector<double> ei_real(eivals.size());
+    for (int i = 0; i < ei_real.size(); i++)
+    {
+        if (eivals[i].imag() == 0)
+        {
+            ei_real[i] = eivals[i].real();
+        }
+        else
+        {
+            ei_real[i] = std::nan("");
+        }
+    }
+    return ei_real;
+}
 
 std::vector<double> decision_states(std::vector<Kilosim::Robot *> &robots)
 {
@@ -331,6 +385,7 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
     }
 
     logger.add_aggregator("num_neighbors", neighbor_count);
+    logger.add_aggregator("network_eigenvals", network_eigenvals);
 
     // sleep(2);
     while (!is_finished(world, robots, end_condition, end_val) &&
@@ -444,7 +499,8 @@ int main(int argc, char *argv[])
         // False = don't overwrite logs
         Kilosim::Logger logger(world, log_filename, trial, true);
         // Kilosim::Logger logger(world, log_filename, trial, false);
-        logger.log_config(config);
+        // False = don't warn about config parameters that can't be saved
+        logger.log_config(config, false);
 
         // Run the right simulation
         std::cout << "Starting trial " << trial << " (" << config.get("log_dir") << ")" << std::endl;

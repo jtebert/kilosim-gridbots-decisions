@@ -13,7 +13,7 @@ project(gridbots_decisions LANGUAGES CXX C)
 add_subdirectory(submodules/kilosim-gridbots)
 
 # Directory containing header files
-include_directories(api)
+include_directories(api submodules/eigen)
 
 # Be sure to list all source files
 add_executable(gridbots_decisions
