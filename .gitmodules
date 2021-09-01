@@ -1,6 +1,7 @@
 [submodule "submodules/kilosim-gridbots"]
 	path = submodules/kilosim-gridbots
 	url = git@github.com:jtebert/kilosim-gridbots.git
+	update = merge
 [submodule "submodules/eigen"]
 	path = submodules/eigen
 	url = https://gitlab.com/libeigen/eigen.git
