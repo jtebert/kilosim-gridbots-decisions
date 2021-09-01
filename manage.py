@@ -409,11 +409,14 @@ def check_progress(dir: str, num_splits: int, num_cores: int):
                 completed_dirs += 1
     print()
 
+    responsible_ratio = num_cores/num_splits
     percent_started = 100*started_dirs/total_dirs
-    print(f'{started_dirs} of {total_dirs} subdirectories started ({percent_started:.2f}%)')
+    print(f'{started_dirs} of {total_dirs} subdirectories started ({percent_started:.2f}%)'
+          f'[{percent_started / responsible_ratio:.2f}%]')
     completed_count = max(0, started_dirs-num_cores, completed_dirs)
     percent_done = 100 * completed_count/total_dirs
-    print(f'{completed_count} of {total_dirs} subdirectories done ({percent_done:.2f}%)')
+    print(f'{completed_count} of {total_dirs} subdirectories done ({percent_done:.2f}%)'
+          f'[{percent_done / responsible_ratio:.2f}%]')
 
     # Roughly estimate time remaining
     time_elapsed = last_data_time - first_data_time
