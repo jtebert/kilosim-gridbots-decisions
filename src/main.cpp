@@ -339,6 +339,7 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
         {
             end_val = config.get("end_condition_params").at("time").at("end_val");
         }
+        logger.log_param("end_val", end_val);
     }
 
     unsigned long int max_duration = config.get("max_trial_duration");
@@ -415,7 +416,17 @@ void sweep_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigPa
 
     int num_robots = config.get("num_robots");
     std::string end_condition = config.get("end_condition");
-    int end_val = config.get("end_val");
+    int end_val;
+    try
+    {
+        end_val = config.get("end_val");
+    }
+    catch (std::invalid_argument &e)
+    {
+        // Try getting it from sub-config instead
+        end_val = config.get("end_condition_params").at(end_condition).at("end_val");
+        logger.log_param("end_val", end_val);
+    }
     unsigned long int max_duration = config.get("max_trial_duration");
 
     std::vector<std::vector<Pos>> sweep_paths =
@@ -504,7 +515,7 @@ int main(int argc, char *argv[])
         // Create log file
         std::string log_filename = (std::string)config.get("log_dir") + "data.h5";
         // False = don't overwrite logs
-        Kilosim::Logger logger(world, log_filename, trial, true);
+        Kilosim::Logger logger(world, log_filename, trial, false);
         // Kilosim::Logger logger(world, log_filename, trial, false);
         // False = don't warn about config parameters that can't be saved
         logger.log_config(config, false);
