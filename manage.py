@@ -251,6 +251,48 @@ def split_data_dirs(filename, num_threads, shuffle):
             f.write('\n'.join(group))
 
 
+def rename_paths(infile: str, in_str: str, out_str: str, split_nums: List[int]):
+    """Rename all the paths in the infile, and the log_dir in the associated JSON config files.
+    This will only affect the file paths within the given split_num splits.
+
+    Parameters
+    ----------
+    infile : str
+        Format of the split files, where # is a wildcard for the split number.
+    in_str : str
+        String to be replaced in the paths with the infile, as well is in the log_dir in the JSON config files.
+    out_str : str
+        What to replace the in_str with.
+    split_nums : List[int]
+        List of all of the splits to be renamed. Others will be unchanged.
+    """
+    for split_num in split_nums:
+        split_file = infile.replace('#', str(split_num))
+        with open(split_file, 'r') as f:
+            in_data_dirs = f.readlines()
+        out_data_dirs = [path.replace(in_str, out_str) for path in in_data_dirs]
+        # Write back to file
+        with open(split_file, 'w') as f:
+            f.writelines(out_data_dirs)
+
+        # In each data_dir, open the config.json and replace edit the log_dir to match
+        def _rename_path(path):
+            config_file = os.path.join(path, 'config.json')
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+            config['log_dir'] = config['log_dir'].replace(in_str, out_str)
+            with open(config_file, 'w') as f:
+                json.dump(config, f)
+
+        # Try to find and rename the log_dir in both the in_data_dirs and out_data_dirs
+        # If the file isn't fount, then just skip it
+        for data_dir in in_data_dirs + out_data_dirs:
+            try:
+                _rename_path(data_dir)
+            except FileNotFoundError:
+                pass
+
+
 def run_groups(exec_filename: str, dirs_filename_glob: str,
                split_nums: Optional[List[int]] = None,):
     """Run all of the data_dirs splits in parallel. It will use as many threads as there are files.
@@ -472,6 +514,30 @@ if __name__ == "__main__":
         help="Whether to shuffle the input directories before splitting"
     )
 
+    rename_parser = subparser.add_parser("rename")
+    rename_parser.set_defaults(cmd='rename')
+    rename_parser.add_argument(
+        "in_str",
+        type=str,
+        help="What substring to rename in the split file and config's log_dir"
+    )
+    rename_parser.add_argument(
+        "out_str",
+        type=str,
+        help="What substring to replace it with"
+    )
+    rename_parser.add_argument(
+        "split_nums",
+        nargs='+',
+        help="List of split numbers to rename"
+    )
+    rename_parser.add_argument(
+        "-i", "--infile",
+        type=str,
+        default=DATA_DIRS_SPLIT_FILEFORMAT,
+        help="Format of input files, with # as number wildcard. eg: data_dirs_split_#.txt (default)"
+    )
+
     run_parser = subparser.add_parser("run")
     run_parser.set_defaults(cmd='run')
     run_parser.add_argument(
@@ -525,6 +591,12 @@ if __name__ == "__main__":
             print(f'Splitting {args.infile} into [{args.num_splits}] parts')
             split_data_dirs(args.infile, args.num_splits, args.shuffle)
 
+        elif args.cmd == 'rename':
+            print(f'Renaming {args.infile}')
+            print(f'Replacing "{args.in_str}" with "{args.out_str}"')
+            split_nums = [int(n) for n in args.split_nums]
+            rename_paths(args.infile, args.in_str, args.out_str, split_nums)
+
         elif args.cmd == 'run':
             if args.split_nums[0] == 'all':
                 split_nums = 'all'
@@ -549,4 +621,4 @@ if __name__ == "__main__":
             check_progress(args.dir, args.num_splits, args.num_cores)
 
         else:
-            print("Invalid command. Choose 'generate', 'split', 'run', or 'split_run'")
+            print("Invalid command. Choose 'generate', 'split', 'rename', 'run', or 'split_run'")
