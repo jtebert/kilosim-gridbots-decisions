@@ -394,6 +394,7 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
 
     logger.add_aggregator("num_neighbors", neighbor_count);
     logger.add_aggregator("network_eigenvals", network_eigenvals);
+    logger.add_aggregator("decision_states", decision_states);
 
     // sleep(2);
     while (!is_finished(world, robots, end_condition, end_val) &&
