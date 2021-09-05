@@ -226,6 +226,10 @@ namespace Kilosim
                         target_pos = new_pos_vel.pos;
                         velocity = set_pso_path(target_pos, new_pos_vel.vel, boids_step_interval);
                     }
+                    else
+                    {
+                        printf("INVALID post_decision_movement: must be hybrid, flock, or disperse\n");
+                    }
                 }
 
                 // std::cout << get_tick() << " " << id << " (" << get_pos().x << "," << get_pos().y << "): " << velocity[0] << "," << velocity[1] << std::endl;
@@ -281,48 +285,6 @@ namespace Kilosim
             //     neighbor_table[i].id = 0;
             // }
         }
-
-        // void add_neighbor_old(json msg, bool from_table = false)
-        // {
-        //     // Add a neighbor in a JSON array to the neighbor table
-        //     // This handles the practicals of putting it in the right spot
-        //     bool was_added = false;
-        //     int ind_to_fill = -1;
-        //     for (auto i = 0; i < neighbor_table.size(); i++)
-        //     {
-        //         if (neighbor_table[i].id == msg.at("id"))
-        //         {
-        //             // Neighbor is already in the table
-        //             // IF from a received table, use the NEWEST value
-        //             // Update the value and stop looking
-        //             if (!from_table || (from_table && msg.at("tick_added") > neighbor_table[i].tick_added))
-        //             {
-        //                 // Update the value only if...
-        //                 // Not from an rx table
-        //                 // OR the rx table value is newer than the table value
-        //                 add_neighbor(msg, i, from_table);
-        //             }
-        //             was_added = true;
-        //             break;
-        //             // Setting the ID to 0 indicates later that this message has been processed
-        //             // new_msgs[m]["id"] = 0;
-        //         }
-        //         else if (neighbor_table[i].id == 0)
-        //         {
-        //             // This is an empty slot that can be used for inserting new elements
-        //             ind_to_fill = i;
-        //         }
-        //     } // end neighbor_table loop
-        //     if (!was_added)
-        //     {
-        //         // printf("ADDING message\n");
-        //         // This wasn't updating an existing value in the table.
-        //         // Instead, add it at ind_to_fill
-        //         // NOTE: ind_to_fill should always be set if this step is reached, because the
-        //         // size of the table matches the number of neighbors
-        //         add_neighbor(msg, ind_to_fill, from_table);
-        //     }
-        // }
 
         void add_neighbor(json msg, unsigned long int ind, bool from_table = false)
         {
@@ -582,10 +544,10 @@ namespace Kilosim
 
                 // TEMPORARY: FOR TESTING
                 // (keep the same velocity if you don't hear from other robots)
-                new_vel = velocity;
+                // new_vel = velocity;
 
-                std::cout << "---\t"
-                          << "(" << get_pos().x << "," << get_pos().y << "):\t" << new_vel[0] << "," << new_vel[1] << std::endl;
+                // std::cout << "---\t"
+                //           << "(" << get_pos().x << "," << get_pos().y << "):\t" << new_vel[0] << "," << new_vel[1] << std::endl;
             }
 
             // This is equivalent to setting a step_interval of 1 (ie update this every tick)

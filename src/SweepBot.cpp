@@ -17,7 +17,7 @@ namespace Kilosim
         int max_path_len;
 
         // DECISION-MAKING parameters
-        std::string end_condition; // "value" or "time"
+        // std::string end_condition; // "value" or "time"
         // Threshold for ending (declaring target found)
         // For "value": decision if min_val is <= end_val, decision is made
         // For "time": decision if get_tick() >= end_val

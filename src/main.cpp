@@ -318,7 +318,7 @@ std::vector<std::vector<Pos>> compute_sweep_paths(int arena_width, int arena_hei
 
 void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigParser &config)
 {
-    // Kilosim::Viewer viewer(world, 1200);
+    Kilosim::Viewer viewer(world, 1200);
     // viewer.set_show_network(true);
     // viewer.set_show_tags(true);
 
@@ -383,7 +383,7 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
         robots[n]->end_condition = end_condition;
         robots[n]->end_val = end_val;
         // Post-decision movement options
-        // robots[n]->post_decision_movement = config.get("post_decision_movement");
+        robots[n]->post_decision_movement = config.get("post_decision_movement");
         // Boids parameters
         robots[n]->lj_a = config.get("lj_a");
         robots[n]->lj_b = config.get("lj_b");
@@ -396,16 +396,17 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
     logger.add_aggregator("network_eigenvals", network_eigenvals);
     logger.add_aggregator("decision_states", decision_states);
 
-    // sleep(2);
+    sleep(2);
     while (!is_finished(world, robots, end_condition, end_val) &&
            world.get_tick() < max_duration)
     {
-        // viewer.draw();
+        viewer.draw();
         world.step();
         if (world.get_tick() % 25 == 0)
         {
             logger.log_state();
         }
+        // usleep(10000);
     }
 }
 
@@ -442,7 +443,6 @@ void sweep_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigPa
             max_path_len = path.size();
         }
     }
-    std::cout << max_path_len << std::endl;
 
     std::vector<Kilosim::SweepBot *> robots(num_robots);
     for (int n = 0; n < num_robots; n++)
@@ -461,13 +461,19 @@ void sweep_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigPa
         // In config, comm_range is in grid cells (as dimension)
         robots[n]->comm_range = (int)config.get("comm_range") * 10;
     }
+
+    logger.add_aggregator("decision_states", decision_states);
+
     // sleep(2);
     while (!is_finished(world, robots, end_condition, end_val) &&
            world.get_tick() < max_duration)
     {
         // viewer.draw();
         world.step();
-        // usleep(100000); //.1s
+        if (world.get_tick() % 25 == 0)
+        {
+            logger.log_state();
+        }
     }
 }
 
@@ -516,7 +522,7 @@ int main(int argc, char *argv[])
         // Create log file
         std::string log_filename = (std::string)config.get("log_dir") + "data.h5";
         // False = don't overwrite logs
-        Kilosim::Logger logger(world, log_filename, trial, false);
+        Kilosim::Logger logger(world, log_filename, trial, true);
         // Kilosim::Logger logger(world, log_filename, trial, false);
         // False = don't warn about config parameters that can't be saved
         logger.log_config(config, false);

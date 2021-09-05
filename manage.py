@@ -340,8 +340,10 @@ def run_all_self_split(exec_filename: str, orig_data_dirs_filename: str, num_thr
 
 def run_single(exec_filename, data_dir):
     # Run a single instance
+
     # This just makes things easier to read
     config_file = os.path.join(data_dir, 'config.json')
+    print(f'RUNNING {config_file}')
     # subprocess.call(['python', exec_filename, config_file])
     subprocess.call([exec_filename, config_file])
 

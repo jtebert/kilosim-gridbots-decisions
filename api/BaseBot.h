@@ -270,12 +270,25 @@ namespace Kilosim
 
         virtual void add_neighbor(json msg, unsigned long int index, bool from_table = false) = 0;
 
+        int num_neighbors_decided()
+        {
+            // Count the number of neighbors that have decided
+            int num_decided = 0;
+            for (auto const &n : neighbor_table)
+            {
+                if (n.id != 0 && n.min_val <= end_val)
+                {
+                    num_decided++;
+                }
+            }
+            return num_decided;
+        }
+
         // Compute whether all the robots in the neighbor_table have found a min_val below the threshold
         bool all_neighbors_decided()
         {
             if (end_condition == "value")
             {
-                // std::cout << "neighbor count: " << neighbor_table.size() << std::endl;
                 for (auto const &n : neighbor_table)
                 {
                     if (n.id != 0)
