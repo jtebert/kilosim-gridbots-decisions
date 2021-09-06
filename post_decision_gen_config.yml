@@ -58,7 +58,8 @@ vary_params:
 
 # IF TIME: Add 64 robot option
 num_robots: [8, 16, 32]
-comm_range: [4, 8, 16, 32]
+# comm_range: [4, 8, 16, 32]
+comm_range: [64]
 
 env_octaves: [1, 3, 5]
 
