@@ -16,7 +16,14 @@
 
 std::vector<double> network_eigenvals(std::vector<Kilosim::Robot *> &robots)
 {
-    // Get the eigenvalues of the connectivity matrix for all of the robots
+    // Get the eigenvalues of the Laplacian of the robot network/communication graph
+    // L = D - A
+    // D is the diagonal matrix of the degree matrix
+    // A is the adjacency matrix of the robot network
+    // L_{i,j} = ...
+    // deg(v_i) if v_i == v_j
+    // -1       if v_i != v_j and v_i is connected to v_j
+    // 0        otherwise
 
     // Get the IDs of all robots
     std::vector<int> robot_ids(robots.size());
@@ -40,9 +47,9 @@ std::vector<double> network_eigenvals(std::vector<Kilosim::Robot *> &robots)
             // (row order must match column order)
             auto iter = std::find(robot_ids.begin(), robot_ids.end(), neighbor_ids[j]);
             int neighbor_id_ind = iter - robot_ids.begin();
-            connectivity_matrix(i, neighbor_id_ind) = 1;
+            connectivity_matrix(i, neighbor_id_ind) = -1;
         }
-        connectivity_matrix(i, i) = 1;
+        connectivity_matrix(i, i) = bot->neighbor_count;
     }
     // Compute the eigenvalues of the matrix
     Eigen::VectorXcd eivals = connectivity_matrix.eigenvalues();
