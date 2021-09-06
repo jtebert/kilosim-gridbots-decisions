@@ -16,7 +16,9 @@
 
 std::vector<double> network_eigenvals(std::vector<Kilosim::Robot *> &robots)
 {
-    // Get the eigenvalues of the Laplacian of the robot network/communication graph
+    // Get the eigenvalues of the Laplacian of the robot network/communication graph for this:
+    // https://en.wikipedia.org/wiki/Algebraic_connectivity
+
     // L = D - A
     // D is the diagonal matrix of the degree matrix
     // A is the adjacency matrix of the robot network
@@ -409,7 +411,7 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
     {
         // viewer.draw();
         world.step();
-        if (world.get_tick() % 25 == 0)
+        if (world.get_tick() % 20 == 0)
         {
             logger.log_state();
         }
@@ -477,7 +479,7 @@ void sweep_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigPa
     {
         // viewer.draw();
         world.step();
-        if (world.get_tick() % 25 == 0)
+        if (world.get_tick() % 20 == 0)
         {
             logger.log_state();
         }
