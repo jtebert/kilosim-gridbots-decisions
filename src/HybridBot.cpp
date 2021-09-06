@@ -102,8 +102,7 @@ namespace Kilosim
 
     private:
         // Utility attributes/variables
-        // Current (starting) angle and velocity
-        double start_angle = uniform_rand_real(5 * PI / 180, 85 * PI / 180);
+
         // Previous position (current position curr_pos is public for aggregators)
         Pos prev_pos;
         Pos curr_pos;
@@ -137,6 +136,8 @@ namespace Kilosim
             {
                 // Set the velocity on the first take (angling away from origin)
                 initialize_neighbor_array();
+                // Current (starting) angle and velocity
+                double start_angle = uniform_rand_real(5 * PI / 180, 85 * PI / 180);
                 std::vector<double> tmp_vel = {
                     start_interval * cos(start_angle),
                     start_interval * sin(start_angle)};
@@ -147,6 +148,23 @@ namespace Kilosim
                                                uniform_rand_real(-max_speed, max_speed)});
                 m_state = SPREAD;
             }
+            // else if (m_state == INIT)
+            // {
+            //     // Alternative INIT state: set a target as a random position in the arena
+            //     initialize_neighbor_array();
+            //     // Pick a random position in the arena
+            //     target_pos = {uniform_rand_real(0, m_arena_grid_width),
+            //                   uniform_rand_real(0, m_arena_grid_height)};
+            //     // Current position is (0,0), so velocity vector toward target is target_pos.
+            //     // Just normalize it to get the "valid" velocity. (But have to convert to double)
+            //     // std::vector<double> tmp_vel = normalize_velocity({target_pos.x, target_pos.y});
+            //     velocity = normalize_velocity({uniform_rand_real(-max_speed, max_speed),
+            //                                    uniform_rand_real(-max_speed, max_speed)});
+            //     // Max path length is the diagonal of the arena
+            //     velocity = set_pso_path(target_pos, velocity, sqrt(pow(m_arena_width, 2) + pow(m_arena_height, 2)));
+            //     m_state = SPREAD;
+            //     set_led(100, 0, 100);
+            // }
             else if (m_state == SPREAD)
             {
                 // Spread away from the origin before doing PSO
@@ -156,9 +174,11 @@ namespace Kilosim
                 {
                     m_state = SEND_HOME;
                 }
-                else if (get_tick() >= start_interval || min_val < end_val)
+                // else if (get_tick() >= start_interval || min_val < end_val)
+                else if (curr_pos == target_pos || min_val < end_val)
                 {
                     m_state = DO_PSO;
+                    set_led(100, 0, 0);
                 }
             }
             else if (m_state == DO_PSO)
@@ -215,13 +235,15 @@ namespace Kilosim
                     if (post_decision_movement == "flock")
                     {
                         // Use Boids-based flocking
-                        pos_vel new_pos_vel = boids_velocity_update(new_neighbor_pos_vel);
+                        double grid_comm_range = comm_range / 10;
+                        pos_vel new_pos_vel = boids_velocity_update(new_neighbor_pos_vel, grid_comm_range * .75);
                         target_pos = new_pos_vel.pos;
                         velocity = set_pso_path(target_pos, new_pos_vel.vel, boids_step_interval);
                     }
                     else if (post_decision_movement == "disperse")
                     {
                         // Use just the LJ component of Boids, but with big target distance
+                        // pos_vel new_pos_vel = boids_velocity_update(new_neighbor_pos_vel, comm_range * 10);
                         pos_vel new_pos_vel = dispersion_velocity_update(new_neighbor_pos_vel);
                         target_pos = new_pos_vel.pos;
                         velocity = set_pso_path(target_pos, new_pos_vel.vel, boids_step_interval);
@@ -460,17 +482,36 @@ namespace Kilosim
             // Velocity update based on dispersion: get the average velocity of all neighbors and go the opposite direction
 
             // This sets the comm_range to 10x the default comm_range in grid space!!
-            double grid_comm_range = comm_range;
-            std::vector<double> lj_acc = lennard_jones_potential(neighbor_pos_vel, grid_comm_range);
-            // lj_acc[0] *= mass;
-            std::vector<double> new_vel = normalize_velocity(lj_acc);
-            Pos curr_pos = get_pos();
+            std::vector<double> new_vel = {0, 0};
+            if (neighbor_pos_vel.size() > 0)
+            {
+                double grid_comm_range = comm_range;
+                std::vector<double> lj_acc = lennard_jones_potential(neighbor_pos_vel, grid_comm_range);
+                // lj_acc = normalize_velocity(lj_acc);
+
+                // lj_acc[0] *= mass;
+                new_vel = {1 * velocity[0] + 1 * lj_acc[0],
+                           1 * velocity[1] + 1 * lj_acc[1]};
+                new_vel = normalize_velocity(new_vel);
+                Pos curr_pos = get_pos();
+            }
+            else
+            {
+                // If no neighbors, add a velocity component in a random direction
+                // (Should match boids_velocity_update)
+                double angle = uniform_rand_real(0, 2 * PI);
+                // convert angle to unit vector
+                new_vel = {velocity[0] + 0.5 * cos(angle),
+                           velocity[1] + 0.5 * sin(angle)};
+                new_vel = normalize_velocity(new_vel);
+                // new_vel = velocity;
+            }
             Pos target = {curr_pos.x + new_vel[0] * boids_step_interval,
                           curr_pos.y + new_vel[1] * boids_step_interval};
             return {target, new_vel};
         }
 
-        pos_vel boids_velocity_update(std::map<uint16_t, pos_vel> neighbor_pos_vel)
+        pos_vel boids_velocity_update(std::map<uint16_t, pos_vel> neighbor_pos_vel, double target_dist)
         {
             // This is Boids-based flocking algorithm for the robots to used once they've made a
             // decision. At this point, they'll spread their information fastest if they
@@ -484,8 +525,8 @@ namespace Kilosim
             if (neighbor_count > 0)
             {
                 // LENNARD-JONES FORCE FOR COHESION AND SEPARATION
-                double grid_comm_range = comm_range / 10;
-                std::vector<double> lj_acc = lennard_jones_potential(neighbor_pos_vel, grid_comm_range * .75);
+
+                std::vector<double> lj_acc = lennard_jones_potential(neighbor_pos_vel, target_dist);
                 // lj_acc[0] *= mass;
                 lj_acc = normalize_velocity(lj_acc);
 
@@ -529,18 +570,17 @@ namespace Kilosim
             }
             else
             {
-                // If no neighbors, set a random velocity
+                // If no neighbors, add a velocity component in a random direction
+                // (Should match dispersion_velocity_update)
                 double angle = uniform_rand_real(0, 2 * PI);
-                // new_vel = {cos(angle), sin(angle)};
-                // new_vel = velocity; // DON'T CHANGE DIRECTION
                 // convert angle to unit vector
-                new_vel = {velocity[0] + cos(angle),
-                           velocity[1] + sin(angle)};
+                new_vel = {velocity[0] + 0.5 * cos(angle),
+                           velocity[1] + 0.5 * sin(angle)};
                 new_vel = normalize_velocity(new_vel);
 
-                new_vel = {pso_inertia * velocity[0] + uniform_rand_real(-10, 10),
-                           pso_inertia * velocity[1] + uniform_rand_real(-10, 10)};
-                new_vel = normalize_velocity(new_vel);
+                // new_vel = {pso_inertia * velocity[0] + uniform_rand_real(-10, 10),
+                //            pso_inertia * velocity[1] + uniform_rand_real(-10, 10)};
+                // new_vel = normalize_velocity(new_vel);
 
                 // TEMPORARY: FOR TESTING
                 // (keep the same velocity if you don't hear from other robots)

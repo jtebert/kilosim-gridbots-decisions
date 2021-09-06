@@ -318,7 +318,7 @@ std::vector<std::vector<Pos>> compute_sweep_paths(int arena_width, int arena_hei
 
 void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigParser &config)
 {
-    Kilosim::Viewer viewer(world, 1200);
+    // Kilosim::Viewer viewer(world, 1200);
     // viewer.set_show_network(true);
     // viewer.set_show_tags(true);
 
@@ -400,7 +400,7 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
     while (!is_finished(world, robots, end_condition, end_val) &&
            world.get_tick() < max_duration)
     {
-        viewer.draw();
+        // viewer.draw();
         world.step();
         if (world.get_tick() % 25 == 0)
         {

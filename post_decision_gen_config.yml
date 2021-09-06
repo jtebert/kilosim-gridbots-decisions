@@ -11,8 +11,9 @@ world_grid_width: 384
 world_grid_height: 384
 
 # config.json files generated from this will go in this directory
-data_dir_base: '~/grid-decisions-data/post_decision_sweep'
-# data_dir_base: '/media/jtebert/home-data/grid-decisions-data/post_decision_sweep'
+# data_dir_base: '~/grid-decisions-data/lab-post_decision_sweep_v3'
+# data_dir_base: '/media/woodlab/DATAPART1/grid-decisions-data/woodlab-post_decision_sweep_v3'
+data_dir_base: '/media/jtebert/home-data/grid-decisions-data/home-post_decision_sweep_v3'
 
 # Range of trial numbers to run (inclusive on both ends)
 start_trial: 1
@@ -71,6 +72,7 @@ end_condition:
 end_condition_params:
   value:
     # These are in 10-bit space (vs image in 8-bit). So /4 to get to 8-bit.
-    end_val: [4, 16, 64] # in 8-bit: [1, 4, 16]
+    # end_val: [4, 16, 64] # in 8-bit: [1, 4, 16]
+    end_val: [4]
   time:
     end_val: [1000, 4000, 8000]

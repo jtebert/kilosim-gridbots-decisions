@@ -144,6 +144,7 @@ namespace Kilosim
         static const uint8_t HOME = 6;
         static const uint8_t FOLLOW_PLAN = 7;
         static const uint8_t WAIT = 8;
+        static const uint8_t ALT_INIT = 100;
 
         std::vector<neighbor_info_t> neighbor_table;
         std::vector<int> neighbor_id_list;
