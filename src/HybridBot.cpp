@@ -132,39 +132,40 @@ namespace Kilosim
                 map_visited(get_pos());
             }
 
-            if (m_state == INIT)
-            {
-                // Set the velocity on the first take (angling away from origin)
-                initialize_neighbor_array();
-                // Current (starting) angle and velocity
-                double start_angle = uniform_rand_real(5 * PI / 180, 85 * PI / 180);
-                std::vector<double> tmp_vel = {
-                    start_interval * cos(start_angle),
-                    start_interval * sin(start_angle)};
-                target_pos = {2 * tmp_vel[0], 2 * tmp_vel[1]};
-                set_pso_path(target_pos, tmp_vel, start_interval);
-                target_pos = m_path_to_target[0]; // target is last position in path
-                velocity = normalize_velocity({uniform_rand_real(-max_speed, max_speed),
-                                               uniform_rand_real(-max_speed, max_speed)});
-                m_state = SPREAD;
-            }
-            // else if (m_state == INIT)
+            // if (m_state == INIT)
             // {
-            //     // Alternative INIT state: set a target as a random position in the arena
+            //     // Set the velocity on the first take (angling away from origin)
             //     initialize_neighbor_array();
-            //     // Pick a random position in the arena
-            //     target_pos = {uniform_rand_real(0, m_arena_grid_width),
-            //                   uniform_rand_real(0, m_arena_grid_height)};
-            //     // Current position is (0,0), so velocity vector toward target is target_pos.
-            //     // Just normalize it to get the "valid" velocity. (But have to convert to double)
-            //     // std::vector<double> tmp_vel = normalize_velocity({target_pos.x, target_pos.y});
+            //     // Current (starting) angle and velocity
+            //     double start_angle = uniform_rand_real(5 * PI / 180, 85 * PI / 180);
+            //     std::vector<double> tmp_vel = {
+            //         start_interval * cos(start_angle),
+            //         start_interval * sin(start_angle)};
+            //     target_pos = {2 * tmp_vel[0], 2 * tmp_vel[1]};
+            //     set_pso_path(target_pos, tmp_vel, start_interval);
+            //     target_pos = m_path_to_target[0]; // target is last position in path
             //     velocity = normalize_velocity({uniform_rand_real(-max_speed, max_speed),
             //                                    uniform_rand_real(-max_speed, max_speed)});
-            //     // Max path length is the diagonal of the arena
-            //     velocity = set_pso_path(target_pos, velocity, sqrt(pow(m_arena_width, 2) + pow(m_arena_height, 2)));
             //     m_state = SPREAD;
-            //     set_led(100, 0, 100);
             // }
+            else if (m_state == INIT)
+            {
+                // Alternative INIT state: set a target as a random position in the arena
+                // This replicates PSO's initial state of dispersed agents.
+                initialize_neighbor_array();
+                // Pick a random position in the arena
+                target_pos = {uniform_rand_real(0, m_arena_grid_width),
+                              uniform_rand_real(0, m_arena_grid_height)};
+                // Current position is (0,0), so velocity vector toward target is target_pos.
+                // Just normalize it to get the "valid" velocity. (But have to convert to double)
+                // std::vector<double> tmp_vel = normalize_velocity({target_pos.x, target_pos.y});
+                velocity = normalize_velocity({uniform_rand_real(-max_speed, max_speed),
+                                               uniform_rand_real(-max_speed, max_speed)});
+                // Max path length is the diagonal of the arena
+                velocity = set_pso_path(target_pos, velocity, sqrt(pow(m_arena_width, 2) + pow(m_arena_height, 2)));
+                m_state = SPREAD;
+                set_led(100, 0, 100);
+            }
             else if (m_state == SPREAD)
             {
                 // Spread away from the origin before doing PSO
