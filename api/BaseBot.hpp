@@ -12,6 +12,7 @@ namespace Kilosim
         uint min_val;
         uint min_loc_x;
         uint min_loc_y;
+        int min_val_time;
         uint curr_pos_x;
         uint curr_pos_y;
         double curr_vel_x;
@@ -39,6 +40,7 @@ namespace Kilosim
         // Minimum value (global/collective) and its location
         uint min_val = 99999; // start higher than anything observable
         Pos min_loc = {-1, -1};
+        int min_val_time = 0; // time at which min_val was observed
 
         // Home position is whether the robot goes to at end (and probably where it starts)
         Pos home_pos = {0, 0};

@@ -327,9 +327,6 @@ std::vector<std::vector<Pos>> compute_sweep_paths(int arena_width, int arena_hei
 
 void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigParser &config)
 {
-    // Kilosim::Viewer viewer(world, 1200);
-    // viewer.set_show_network(true);
-    // viewer.set_show_tags(true);
 
     int num_robots = config.get("num_robots");
     std::string end_condition = config.get("end_condition");
@@ -378,8 +375,11 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
         robots[n]->max_speed = config.get("max_speed");
         // PSO/GD hybrid pre-decision movement
         robots[n]->pso_step_interval = config.get("pso_step_interval");
+        robots[n]->is_pso_step_interval_constant = config.get("is_pso_step_interval_constant", true);
         robots[n]->pso_self_weight = pso_self_weight;
         robots[n]->pso_group_weight = pso_group_weight;
+        // This is only used with the old init method. It's left here for legacy reasons.
+        // (Now, robots, start by going to a random initial position)
         robots[n]->start_interval = (int)config.get("pso_step_interval") * 3;
         robots[n]->pso_inertia = config.get("pso_inertia");
         robots[n]->gradient_weight = config.get("gradient_weight");
@@ -404,6 +404,10 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
     logger.add_aggregator("num_neighbors", neighbor_count);
     logger.add_aggregator("network_eigenvals", network_eigenvals);
     logger.add_aggregator("decision_states", decision_states);
+
+    // Kilosim::Viewer viewer(world, 1200);
+    // viewer.set_show_network(true);
+    // viewer.set_show_tags(true);
 
     sleep(2);
     while (!is_finished(world, robots, end_condition, end_val) &&

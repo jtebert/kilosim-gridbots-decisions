@@ -11,17 +11,19 @@
     "lj_epsilon": 1,
     "lj_gamma": 1,
     "boids_step_interval": 16,
-    "movement_type": "sweep",
+    "movement_type": "hybrid",
     "num_robots": 16,
     "comm_range": 32,
     "env_octaves": 3,
     "rx_table_timeout": 1024,
     "gradient_weight": 10,
-    "pso_step_interval": 25,
+    "pso_step_interval": 256,
+    "is_pso_step_interval_constant": false,
     "pso_inertia": 1.2,
     "pso_weights": 0.025,
     "log_dir": "../data/",
     "end_condition": "value",
+    "post_decision_movement": "flock",
     "end_condition_params": {
         "value": {
             "end_val": 4

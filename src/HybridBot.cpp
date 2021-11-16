@@ -7,7 +7,7 @@
  */
 
 #include "Gridbot.h"
-#include "BaseBot.h"
+#include "BaseBot.hpp"
 
 #include <cmath>
 
@@ -35,6 +35,10 @@ namespace Kilosim
 
         // Every how many ticks to update the PSO target/velocity
         int pso_step_interval;
+        bool is_pso_step_interval_constant;
+        // Computed velocity update interval, from pso_step_interval & is_step_interval_constant
+        int next_vel_update_tick;
+
         int boids_step_interval;
         // Time to wait before doing first PSO update, so they spread out at start
         int start_interval;
@@ -69,13 +73,15 @@ namespace Kilosim
         int rx_table_timeout; // Time neighbor messages stay in table
 
         // Data values
-        // min_val and min_loc are defined in BaseBot
+        // min_val, min_loc, and min_val_time are defined in BaseBot
         // Lowest value from OWN observations
         uint obs_min_val = 99999;
         Pos obs_min_loc = {-1, -1};
+        int obs_min_val_time = 0;
         // Lowest value from RECEIVED messages
         uint rx_min_val = 99999;
         Pos rx_min_loc = {-1, -1};
+        int rx_min_val_time = 0;
 
         // ---------------------------------------------------------------------
 
@@ -113,7 +119,6 @@ namespace Kilosim
         {
             set_led(100, 0, 0);
             // curr_pos = get_pos();
-
             m_state = INIT;
         };
 
@@ -148,7 +153,7 @@ namespace Kilosim
             //                                    uniform_rand_real(-max_speed, max_speed)});
             //     m_state = SPREAD;
             // }
-            else if (m_state == INIT)
+            if (m_state == INIT)
             {
                 // Alternative INIT state: set a target as a random position in the arena
                 // This replicates PSO's initial state of dispersed agents.
@@ -170,7 +175,7 @@ namespace Kilosim
             {
                 // Spread away from the origin before doing PSO
                 neighbor_count = process_msgs();
-                update_mins(pos_samples);
+                update_mins(pos_samples, true);
                 if (is_time_to_go_home())
                 {
                     m_state = SEND_HOME;
@@ -180,18 +185,39 @@ namespace Kilosim
                 {
                     m_state = DO_PSO;
                     set_led(100, 0, 0);
+                    // Set the next time to update the PSO velocity
+                    next_vel_update_tick = get_tick() + 1; // update on next tick
+                    // std::cout << "t=" << get_tick() << " -> " << next_vel_update_tick << " (" << next_vel_update_tick - get_tick() << ")" << std::endl;
                 }
             }
             else if (m_state == DO_PSO)
             {
                 int tick = get_tick();
                 neighbor_count = process_msgs();
-                update_mins(pos_samples);
-                if (tick % pso_step_interval == 1)
+                update_mins(pos_samples, true);
+                // if (tick % pso_step_interval == 1)
+                // std::cout << tick << ", " << next_vel_update_tick << std::endl;
+                if (tick >= next_vel_update_tick)
                 {
+                    set_led(0, 0, 100);
                     pos_vel new_pos_vel = pso_velocity_update(pos_samples);
                     target_pos = new_pos_vel.pos;
                     velocity = set_pso_path(target_pos, new_pos_vel.vel);
+                    // Set the next time to update the PSO velocity
+                    if (is_pso_step_interval_constant)
+                    {
+                        next_vel_update_tick = tick + pso_step_interval;
+                    }
+                    else
+                    {
+                        // Prevent issues with initialized time of 0
+                        int p_delta_t = std::max(0, tick - obs_min_val_time);
+                        int g_delta_t = std::max(0, tick - min_val_time);
+                        next_vel_update_tick = tick + std::max(1, std::min(std::min(p_delta_t, g_delta_t), pso_step_interval));
+                        // std::cout << "[" << tick << "] " << id << ":\tmin(" << pso_step_interval << ", " << p_delta_t << ", " << g_delta_t << ") = " << next_vel_update_tick - tick << std::endl;
+                        // printf("\n");
+                    }
+                    // std::cout << "t=" << tick << " -> " << next_vel_update_tick << " (" << next_vel_update_tick - tick << ")" << std::endl;
                 }
                 if (is_time_to_go_home())
                 {
@@ -207,7 +233,7 @@ namespace Kilosim
             {
                 // Share the decision with neighbors (aka do Boids)
                 neighbor_count = process_msgs();
-                update_mins(pos_samples);
+                update_mins(pos_samples, true);
 
                 // Various post-decision movement options
                 if (post_decision_movement == "hybrid")
@@ -321,6 +347,7 @@ namespace Kilosim
             neighbor_table[ind].min_loc_x = msg.at("min_loc_x");
             neighbor_table[ind].min_loc_y = msg.at("min_loc_y");
             neighbor_table[ind].min_val = msg.at("min_val");
+            neighbor_table[ind].min_val_time = msg.at("min_val_time");
             neighbor_table[ind].curr_pos_x = msg.at("curr_pos_x");
             neighbor_table[ind].curr_pos_y = msg.at("curr_pos_y");
             neighbor_table[ind].curr_vel_x = msg.at("curr_vel_x");
@@ -341,8 +368,10 @@ namespace Kilosim
             {
                 min_val = msg.at("min_val");
                 min_loc = {msg.at("min_loc_x"), msg.at("min_loc_y")};
+                min_val_time = msg.at("min_val_time");
                 rx_min_val = msg.at("min_val");
                 rx_min_loc = {msg.at("min_loc_x"), msg.at("min_loc_y")};
+                rx_min_val_time = msg.at("min_val_time");
             }
         }
 
@@ -388,6 +417,7 @@ namespace Kilosim
                 msg["min_loc_x"] = min_loc.x;
                 msg["min_loc_y"] = min_loc.y;
                 msg["min_val"] = min_val;
+                msg["min_val_time"] = min_val_time;
                 msg["curr_pos_x"] = curr_pos.x;
                 msg["curr_pos_y"] = curr_pos.y;
                 msg["curr_vel_x"] = velocity[0];
@@ -410,6 +440,7 @@ namespace Kilosim
                     neighbor["min_loc_x"] = neighbor_table[i].min_loc_x;
                     neighbor["min_loc_y"] = neighbor_table[i].min_loc_y;
                     neighbor["min_val"] = neighbor_table[i].min_val;
+                    neighbor["min_val_time"] = neighbor_table[i].min_val_time;
                     neighbor["tick_added"] = neighbor_table[i].tick_added;
                     neighbor["curr_pos_x"] = neighbor_table[i].curr_pos_x;
                     neighbor["curr_pos_y"] = neighbor_table[i].curr_pos_y;
@@ -791,17 +822,19 @@ namespace Kilosim
             // Update the minimum location and value, if any of the new values are lower
             for (auto const &s : pos_samples)
             {
-                if (s.second < min_val && s.second != -1) // (-1=not real obs.)
+                if (s.second <= min_val && s.second != -1) // (-1=not real obs.)
                 {
                     // Set as the minimum if it's lower than anything seen before
                     min_val = s.second;
                     min_loc = s.first;
+                    min_val_time = get_tick();
                     // std::cout << min_loc.x << "," << min_loc.y << " (" << min_val << ")" << std::endl;
                     if (is_own_obs)
                     {
                         // If this came from own observations, set that too
                         obs_min_val = min_val;
                         obs_min_loc = min_loc;
+                        obs_min_val_time = get_tick();
                     }
                 }
             }

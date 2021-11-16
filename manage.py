@@ -178,7 +178,7 @@ def gen_configs(src_yml: str, out_filename: str,
     new_data_dirs = []
     num_dirs = len(data_dirs)
     for ind, varied_config, data_dir in zip(range(num_dirs), all_conditions, data_dirs):
-        if int(ind % int(num_dirs/80)) == 0:
+        if num_dirs >= 80 and int(ind % int(num_dirs/80)) == 0:
             print('.', end="", flush=True)
         # Combine fixed and varied parameters
         # out_config = src_config.deepcopy()
@@ -398,7 +398,7 @@ def check_progress(dir: str, num_splits: int, num_cores: int):
     for ind, subdir in enumerate(subfolders):
         # Get the time that data.h5 was last modified
         data_file = os.path.join(dir, subdir, 'data.h5')
-        if int(ind % int(total_dirs/80)) == 0:
+        if total_dirs >= 80 and int(ind % int(total_dirs/80)) == 0:
             print('.', end="", flush=True)
         if os.path.exists(data_file):
             data_mod_time = os.path.getmtime(data_file)

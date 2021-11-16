@@ -1,0 +1,56 @@
+# -- FIXED PARAMETERS ----------------------------------------------------------
+
+world_grid_width: 384
+world_grid_height: 384
+
+data_dir_base: '/media/jtebert/data2/gridsim/deterministic_env/update-interval'
+
+start_trial: 31
+num_trials: 20
+max_trial_duration: 5000
+img_dir: imgs
+
+# THESE ARE PLACEHOLDERS; THEY AREN'T USED OR TUNED FOR THIS STAGE
+# Boids parameters (only in hybrid movement)
+lj_a: 6 # Lennard-Jones potential
+lj_b: 3 # Lennard-Jones potential
+lj_epsilon: 1
+lj_gamma: 1
+boids_step_interval: 10
+rx_table_timeout: 512
+post_decision_movement: "flock"
+
+# max_speed: 2
+
+# -- FOR PSO ONLY --------------------------------------------------------------
+
+end_condition: 'first_find'
+end_val: 4
+movement_type: 'hybrid'
+
+# -- FIXED TEST_PARAMETERS -----------------------------------------------------
+# These are the "best" parameters from the previous pre-decision test
+# Here, I'm looking to see whether the variable update interval improves time
+
+gradient_weight: 4
+pso_inertia: 0.5
+pso_weights: 0.01
+
+# NOTE: This is now used as the UPPER BOUND for the update interval
+# The actual update interval is: min(pso_step_interval, t-t^P, t-t^G)
+pso_step_interval: 128
+# Flag for whether to use pso_step interval as constant (default) or in above func.
+is_pso_step_interval_constant: false
+
+# -- VARIED PARAMETERS ---------------------------------------------------------
+
+vary_params:
+- num_robots
+- comm_range
+- env_octaves
+- max_speed
+
+num_robots: [8, 32]
+comm_range: [4, 16, 32]
+env_octaves: [1, 3, 5]
+max_speed: [2, 25]

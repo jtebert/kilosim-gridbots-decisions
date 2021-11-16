@@ -5,7 +5,7 @@
  */
 
 #include "Gridbot.h"
-#include "BaseBot.h"
+#include "BaseBot.hpp"
 
 namespace Kilosim
 {
