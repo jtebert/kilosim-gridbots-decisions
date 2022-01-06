@@ -73,7 +73,8 @@ def format_value(val) -> str:
 
 
 def gen_configs(src_yml: str, out_filename: str,
-                allow_overwrite: bool = False, descriptive_folders: bool = False):
+                allow_overwrite: bool = False, descriptive_folders: bool = False,
+                is_dummy: bool = False,):
     """
     Generate all of the possible configuration combinations based on the cross
     product of all vary_params options in the given src_yml. A YAML config file
@@ -105,6 +106,9 @@ def gen_configs(src_yml: str, out_filename: str,
         and values.
         If false, the subfolder names will be numerically indexed.
     """
+    if is_dummy:
+        print("\nDUMMY RUN: NOT GENERATING ANY DIRECTORIES OR CONFIGURATIONS\n")
+
     with open(src_yml) as f:
         src_config = yaml.load(f, Loader=yaml.FullLoader)
 
@@ -174,7 +178,6 @@ def gen_configs(src_yml: str, out_filename: str,
                      for i in range(num_dirs)]
 
     print(f'Generating {len(all_conditions)} conditions...')
-
     new_data_dirs = []
     num_dirs = len(data_dirs)
     for ind, varied_config, data_dir in zip(range(num_dirs), all_conditions, data_dirs):
@@ -190,23 +193,27 @@ def gen_configs(src_yml: str, out_filename: str,
         # Create data directory
         if allow_overwrite or (not allow_overwrite and not os.path.exists(data_dir)):
             # If overwrites are allowed OR if the directory doesn't exist
-            os.makedirs(data_dir, exist_ok=True)
+            if not is_dummy:
+                os.makedirs(data_dir, exist_ok=True)
             # print("CREATING\t", data_dir)
             new_data_dirs.append(data_dir)
         else:
             # print('SKIPPING\t', data_dir)
             pass
-        # Dump to config.json in that location
-        config_filename = os.path.join(data_dir, 'config.json')
-        with open(config_filename, 'w') as config_file:
-            json.dump(out_config, config_file)
-        # with open('data.yml', 'w') as outfile:
-        #     yaml.dump(data, outfile, default_flow_style=False)
+        if not is_dummy:
+            # Dump to config.json in that location
+            config_filename = os.path.join(data_dir, 'config.json')
+            with open(config_filename, 'w') as config_file:
+                json.dump(out_config, config_file)
+            # with open('data.yml', 'w') as outfile:
+            #     yaml.dump(data, outfile, default_flow_style=False)
     print()
 
-    # Save the directory names to a file (ONLY DIRS THAT WERE CREATED)
-    with open(out_filename, 'w') as f:
-        f.write('\n'.join(new_data_dirs))
+    if not is_dummy:
+        # Save the directory names to a file (ONLY DIRS THAT WERE CREATED)
+        with open(out_filename, 'w') as f:
+            f.write('\n'.join(new_data_dirs))
+
     print(f'Created and saved {len(new_data_dirs)} new configurations (saved in {out_filename}).')
     print(f'Skipped {len(all_conditions)-len(new_data_dirs)} existing configurations')
 
@@ -499,6 +506,12 @@ if __name__ == "__main__":
         help='Whether to use descriptive names for the folders' +
              ' (ie, including varied parameter names/values)'
     )
+    gen_parser.add_argument(
+        "--dummy_run",
+        default=False,
+        action='store_true',
+        help="Whether to generate the configs (False) or just test how many it will make (True)"
+    )
 
     split_parser = subparser.add_parser("split")
     split_parser.set_defaults(cmd='split')
@@ -590,7 +603,8 @@ if __name__ == "__main__":
             print('Output:', args.outfile)
             gen_configs(args.src, args.outfile,
                         allow_overwrite=args.allow_overwrite,
-                        descriptive_folders=args.descriptive_folders)
+                        descriptive_folders=args.descriptive_folders,
+                        is_dummy=args.dummy_run)
 
         elif args.cmd == 'split':
             print(f'Splitting {args.infile} into [{args.num_splits}] parts')
