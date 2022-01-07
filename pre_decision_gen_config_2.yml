@@ -6,7 +6,7 @@
 world_grid_width: 384
 world_grid_height: 384
 
-data_dir_base: '/media/jtebert/data2/hybrid-algorithm2/pre_decision_sweep'
+data_dir_base: '/media/woodlab/DATAPART1/jtebert/grid-decisions_data/hybrid-algorithm2/woodlab-pre_decision_sweep'
 
 start_trial: 1
 num_trials: 50
