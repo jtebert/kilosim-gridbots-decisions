@@ -267,7 +267,8 @@ def rename_paths(infile: str, in_str: str, out_str: str, split_nums: List[int]):
     infile : str
         Format of the split files, where # is a wildcard for the split number.
     in_str : str
-        String to be replaced in the paths with the infile, as well is in the log_dir in the JSON config files.
+        String to be replaced in the paths with the infile, as well is in the log_dir in the JSON
+        config files.
     out_str : str
         What to replace the in_str with.
     split_nums : List[int]

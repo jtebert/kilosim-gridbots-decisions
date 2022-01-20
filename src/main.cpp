@@ -409,7 +409,7 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
     // viewer.set_show_network(true);
     // viewer.set_show_tags(true);
 
-    sleep(2);
+    //sleep(2);
     while (!is_finished(world, robots, end_condition, end_val) &&
            world.get_tick() < max_duration)
     {
@@ -535,7 +535,7 @@ int main(int argc, char *argv[])
         // Create log file
         std::string log_filename = (std::string)config.get("log_dir") + "data.h5";
         // False = don't overwrite logs
-        Kilosim::Logger logger(world, log_filename, trial, true);
+        Kilosim::Logger logger(world, log_filename, trial, false);
         // Kilosim::Logger logger(world, log_filename, trial, false);
         // False = don't warn about config parameters that can't be saved
         logger.log_config(config, false);

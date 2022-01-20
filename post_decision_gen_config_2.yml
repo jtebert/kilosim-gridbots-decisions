@@ -1,0 +1,85 @@
+# This is the base for all generated configurations for the parameter sweep for my IROS 2022 paper.
+# Compared to v1, this now has variable update interval and higher max_speed
+
+# This is YAML instead of JSON (the output format of `manage.py generate`) because YAML is easier to
+# read and lets me add comments.
+
+# -- FIXED PARAMETERS ----------------------------------------------------------
+
+world_grid_width: 384
+world_grid_height: 384
+
+# config.json files generated from this will go in this directory
+data_dir_base: '/media/jtebert/data2/hybrid-algorithm2/lab-post_decision_sweep'
+# data_dir_base: '/media/jtebert/home-data/hybrid-algorithm2/home-post_decision_sweep'
+# data_dir_base: '/media/woodlab/DATAPART1/jtebert/grid-decisions-data/hybrid-algorithm2/home-post_decision_sweep'
+
+# Range of trial numbers to run (inclusive on both ends)
+start_trial: 1
+num_trials: 50
+max_trial_duration: 20000
+# Path is relative to directory where code is run (typically project root)
+img_dir: "imgs"
+# env_img_pattern: 'imgs/img_oct={octaves}_{trial:03d}.png'
+
+
+# PSO parameters (only in hybrid movement)
+
+# NOTE: This is now used as the UPPER BOUND for the update interval
+# The actual update interval is: min(pso_step_interval, t-t^P, t-t^G)
+pso_step_interval: 128
+# Flag for whether to use pso_step interval as constant (default) or in above func.
+is_pso_step_interval_constant: false
+
+# These were the best parameters selected from the pre-decision sweep
+pso_inertia: 0.0
+pso_self_weight: 1.0
+pso_group_weight: 1.0
+gradient_weight: 0.0
+max_speed: 25 # virtual speed
+# comm_range: 32
+
+# Boids parameters (only in hybrid movement)
+boids_step_interval: 8 # ticks
+lj_a: 12 # Lennard-Jones potential
+lj_b: 6 # Lennard-Jones potential
+lj_epsilon: 1
+lj_gamma: 1
+
+movement_type: 'hybrid'
+
+# -- VARIED PARAMETERS ---------------------------------------------------------
+
+# This determines what's varied within the experiments.
+# There's some redundancy
+vary_params:
+- num_robots
+- comm_range
+- env_octaves
+- rx_table_timeout
+- post_decision_movement
+- end_condition
+- end_condition_params/value/end_val
+- end_condition_params/time/end_val
+
+# IF TIME: Add 64 robot option
+num_robots: [8, 16, 32]
+# comm_range: [4, 8, 16, 32]
+comm_range: [4, 8, 32, 800]
+
+env_octaves: [1, 3, 5]
+
+rx_table_timeout: [256, 512, 1024] # num. ticks after which old rx hop counts are purged
+post_decision_movement: ['hybrid', 'flock', 'disperse']
+
+end_condition:
+- 'value'
+# - 'time'
+
+end_condition_params:
+  value:
+    # These are in 10-bit space (vs image in 8-bit). So /4 to get to 8-bit.
+    # end_val: [4, 16, 64] # in 8-bit: [1, 4, 16]
+    end_val: [4]
+  time:
+    end_val: [1000, 4000, 8000]
