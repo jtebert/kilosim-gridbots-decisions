@@ -78,12 +78,12 @@ This is the process for splitting a batch to run across multiple computers
   - Change config base folder name in `post_decision_gen_config_2.yml`
   - Generate folders: `python manage.py generate post_decision_gen_config_2.yml -o post_data_dirs.txt`
   - Rename folders:
-    - For home computer: `python manage.py rename "/media/jtebert/data2/hybrid-algorithm2/lab-post_decision_sweep" "/media/jtebert/home-data/hybrid-algorithm2/home-post_decision_sweep" -i post_data_dirst_split_#.txt 8 9 10 11 12 13 14 15`
-    - For woodlab computer: `python manage.py rename "/media/jtebert/data2/hybrid-algorithm2/lab-post_decision_sweep" "/media/woodlab/DATAPART1/jtebert/grid-decisions-data/hybrid-algorithm2/home-post_decision_sweep" -i post_data_dirst_split_#.txt 4 5 6 7`
+    - For home computer: `python manage.py rename "/media/jtebert/data2/hybrid-algorithm2/lab-post_decision_sweep" "/media/jtebert/home-data/hybrid-algorithm2/home-post_decision_sweep" -i post_data_dirs_split_#.txt 8 9 10 11 12 13 14 15`
+    - For woodlab computer: `python manage.py rename "/media/jtebert/data2/hybrid-algorithm2/woodlab-post_decision_sweep" "/media/woodlab/DATAPART1/jtebert/grid-decisions-data/hybrid-algorithm2/home-post_decision_sweep" -i post_data_dirs_split_#.txt 4 5 6 7`
   - Set up tmux session: `tmux` (To detach: `Ctrl`+`b`, `d`. To reattach: `tmux attach`)
   - Run respective threads
     - For home computer: `python manage.py run "./bin/gridbots_decisions" 8 9 10 11 12 13 14 15 -i post_data_dirs_split_#.txt`
     - For woodlab computer: `python manage.py run "./bin/gridbots_decisions" 4 5 6 7 -i post_data_dirs_split_#.txt`
 - To copy data afterwards:
   - From home computer: `cp -pr /media/jtebert/home-data/hybrid-algorithm2/home-post_decision_sweep home-post_decision_sweep /media/jtebert/portable-data/hybrid-algorithm2/post_decision_sweep`
-  - From woodlab computer: `cp -pr /media/woodlab/DATAPART1/jtebert/grid-decisions-data/hybrid-algorithm2/home-post_decision_sweep /media/woodlab/portable-data/hybrid-algorithm2/post_decision_sweep`
+  - From woodlab computer: `cp -pr /media/woodlab/DATAPART1/jtebert/grid-decisions-data/hybrid-algorithm2/woodlab-post_decision_sweep /media/woodlab/portable-data/hybrid-algorithm2/post_decision_sweep`
