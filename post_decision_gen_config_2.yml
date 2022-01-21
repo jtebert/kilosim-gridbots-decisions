@@ -12,7 +12,7 @@ world_grid_height: 384
 # config.json files generated from this will go in this directory
 data_dir_base: '/media/jtebert/data2/hybrid-algorithm2/lab-post_decision_sweep'
 # data_dir_base: '/media/jtebert/home-data/hybrid-algorithm2/home-post_decision_sweep'
-# data_dir_base: '/media/woodlab/DATAPART1/jtebert/grid-decisions-data/hybrid-algorithm2/home-post_decision_sweep'
+# data_dir_base: '/media/woodlab/DATAPART1/jtebert/grid-decisions-data/hybrid-algorithm2/woodlab-post_decision_sweep'
 
 # Range of trial numbers to run (inclusive on both ends)
 start_trial: 1
