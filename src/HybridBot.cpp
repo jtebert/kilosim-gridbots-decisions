@@ -168,6 +168,7 @@ namespace Kilosim
                                                uniform_rand_real(-max_speed, max_speed)});
                 // Max path length is the diagonal of the arena
                 velocity = set_pso_path(target_pos, velocity, sqrt(pow(m_arena_width, 2) + pow(m_arena_height, 2)));
+                // std::cout << "INIT: " << target_pos.x << "," << target_pos.y << " (" << velocity[0] << "," << velocity[1] << ")" << std::endl;
                 m_state = SPREAD;
                 set_led(100, 0, 100);
             }
@@ -181,7 +182,7 @@ namespace Kilosim
                     m_state = SEND_HOME;
                 }
                 // else if (get_tick() >= start_interval || min_val < end_val)
-                else if (curr_pos == target_pos || min_val < end_val)
+                else if (curr_pos == target_pos || min_val < target_val)
                 {
                     m_state = DO_PSO;
                     set_led(100, 0, 0);
@@ -287,13 +288,17 @@ namespace Kilosim
                 {
                     m_state = SEND_HOME;
                 }
+                else if (is_time_to_go_home())
+                {
+                    m_state = SEND_HOME;
+                }
             }
             else if (m_state == SEND_HOME)
             {
                 // Prepape for the GO_HOME state
                 target_pos = home_pos;
                 set_pso_path(target_pos, {0, 0}, 1000);
-                set_led(0, 0, 100);
+                // set_led(0, 0, 100);
                 m_state = GO_HOME;
             }
             else if (m_state == GO_HOME)

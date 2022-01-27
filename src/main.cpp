@@ -185,24 +185,31 @@ std::vector<double> collective_coverage(std::vector<Kilosim::Robot *> &robots)
 
 // -------------------------------------------------------------------------------------------------
 
+bool all_robots_home(std::vector<Kilosim::HybridBot *> robots)
+{
+    for (auto robot : robots)
+    {
+        if (!robot->is_home())
+        {
+            // At least one robot is not home (ie finished)
+            return false;
+        }
+    }
+    return true;
+}
+
 // Check if all of the robots in the world are finished
 // (either they all found the source and returned home, or the time limit expired)
 bool is_finished(Kilosim::World &world, std::vector<Kilosim::HybridBot *> robots, std::string end_condition, int end_val)
 {
     if (end_condition == "time")
     {
-        return world.get_time() * world.get_tick_rate() >= end_val;
+        // Either time is up OR all of the robots are home (done)
+        return (world.get_time() * world.get_tick_rate() >= end_val) || all_robots_home(robots);
     }
     else if (end_condition == "value")
     {
-        for (auto robot : robots)
-        {
-            if (!robot->is_home())
-            {
-                // At least one robot is not home (ie finished)
-                return false;
-            }
-        }
+        return all_robots_home(robots);
     }
     else if (end_condition == "first_find")
     {
@@ -362,6 +369,7 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
         }
         logger.log_param("end_val", end_val);
     }
+    int target_val = config.get("target_val");
 
     unsigned long int max_duration = config.get("max_trial_duration");
 
@@ -406,6 +414,7 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
         // End conditions
         robots[n]->end_condition = end_condition;
         robots[n]->end_val = end_val;
+        robots[n]->target_val = target_val;
         // Post-decision movement options
         robots[n]->post_decision_movement = config.get("post_decision_movement");
         // Boids parameters
@@ -425,7 +434,7 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
     // viewer.set_show_network(true);
     // viewer.set_show_tags(true);
 
-    //sleep(2);
+    // sleep(2);
     while (!is_finished(world, robots, end_condition, end_val) &&
            world.get_tick() < max_duration)
     {

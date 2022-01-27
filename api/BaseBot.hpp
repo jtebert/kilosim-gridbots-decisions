@@ -35,6 +35,7 @@ namespace Kilosim
         // For "value": decision if min_val is <= end_val, decision is made
         // For "time": decision if get_tick() >= end_val
         int end_val;
+        int target_val;
 
         // Data values
         // Minimum value (global/collective) and its location
@@ -49,14 +50,14 @@ namespace Kilosim
 
         bool has_decided()
         {
-            return min_val <= end_val;
+            return min_val <= target_val;
         }
 
         bool is_finished()
         {
             if (end_condition == "time")
             {
-                return get_tick() >= end_val;
+                return (get_tick() >= end_val) || has_decided();
             }
             else if (end_condition == "value" || end_condition == "first_find")
             {
@@ -284,7 +285,7 @@ namespace Kilosim
             int num_decided = 0;
             for (auto const &n : neighbor_table)
             {
-                if (n.id != 0 && n.min_val <= end_val)
+                if (n.id != 0 && n.min_val <= target_val)
                 {
                     num_decided++;
                 }
@@ -295,25 +296,26 @@ namespace Kilosim
         // Compute whether all the robots in the neighbor_table have found a min_val below the threshold
         bool all_neighbors_decided()
         {
-            if (end_condition == "value")
+            // NEW: Allow this condition to be checked if robots are using time-based end condition
+            // if (end_condition == "value")
+            // {
+            for (auto const &n : neighbor_table)
             {
-                for (auto const &n : neighbor_table)
+                if (n.id != 0)
                 {
-                    if (n.id != 0)
+                    if (n.min_val > target_val)
                     {
-                        if (n.min_val > end_val)
-                        {
-                            // There's a robots that has not found a min_val below the threshold
-                            // so we can stop searching. Don't
-                            return false;
-                        }
+                        // There's a robots that has not found a min_val below the threshold
+                        // so we can stop searching. Don't
+                        return false;
                     }
                 }
-                // We haven't found any undecided neighbors
-                return true;
             }
-            // irrelevant if using time-based end condition
-            return false;
+            // We haven't found any undecided neighbors
+            return true;
+            // }
+            // // irrelevant if using time-based end condition
+            // return false;
         }
 
         bool is_time_to_go_home()

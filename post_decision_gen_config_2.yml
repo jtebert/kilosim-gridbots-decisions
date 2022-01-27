@@ -48,6 +48,8 @@ lj_gamma: 1
 
 movement_type: 'hybrid'
 
+target_val: 4 # Same as value-based end val, so that time-based ending condition knows it
+
 # -- VARIED PARAMETERS ---------------------------------------------------------
 
 # This determines what's varied within the experiments.
@@ -73,7 +75,7 @@ rx_table_timeout: [256, 512, 1024] # num. ticks after which old rx hop counts ar
 post_decision_movement: ['hybrid', 'flock', 'disperse']
 
 end_condition:
-- 'value'
+# - 'value'
 - 'time'
 
 end_condition_params:

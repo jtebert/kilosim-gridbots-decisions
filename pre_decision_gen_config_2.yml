@@ -30,6 +30,7 @@ post_decision_movement: "flock"
 end_condition: 'first_find'
 end_val: 4
 movement_type: 'hybrid'
+target_val: 4 # Same as value-based end val, so that time-based ending condition knows it
 
 # -- FIXED TEST_PARAMETERS -----------------------------------------------------
 

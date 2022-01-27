@@ -1,10 +1,10 @@
 {
     "world_grid_width": 384,
     "world_grid_height": 384,
-    "start_trial": 1,
+    "start_trial": 26,
     "num_trials": 10,
     "max_trial_duration": 10000,
-    "img_dir": "../imgs",
+    "img_dir": "imgs",
     "max_speed": 25,
     "lj_a": 6,
     "lj_b": 3,
@@ -17,14 +17,18 @@
     "env_octaves": 3,
     "rx_table_timeout": 1024,
     "gradient_weight": 10,
-    "pso_step_interval": 256,
+    "pso_step_interval": 128,
     "is_pso_step_interval_constant": false,
     "pso_inertia": 1.2,
     "pso_weights": 0.025,
-    "log_dir": "../data/",
+    "log_dir": "data/",
     "end_condition": "value",
+    "target_val": 4,
     "post_decision_movement": "flock",
     "end_condition_params": {
+        "time": {
+            "end_val": 1000
+        },
         "value": {
             "end_val": 4
         }
