@@ -47,6 +47,11 @@ namespace Kilosim
 
         uint8_t m_state;
 
+        bool has_decided()
+        {
+            return min_val <= end_val;
+        }
+
         bool is_finished()
         {
             if (end_condition == "time")
@@ -55,7 +60,7 @@ namespace Kilosim
             }
             else if (end_condition == "value" || end_condition == "first_find")
             {
-                return min_val <= end_val;
+                return has_decided();
             }
             else
             {

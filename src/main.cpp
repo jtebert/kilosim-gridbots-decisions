@@ -85,6 +85,21 @@ std::vector<double> decision_states(std::vector<Kilosim::Robot *> &robots)
     return decision_states;
 }
 
+std::vector<double> has_decided_count(std::vector<Kilosim::Robot *> &robots)
+{
+    // Count how many robots have made a decision (ie, found value <= threshold)
+    double decided_count = 0;
+    for (auto i = 0ul; i < robots.size(); i++)
+    {
+        Kilosim::BaseBot *bot = (Kilosim::BaseBot *)robots[i];
+        if (bot->has_decided())
+        {
+            decided_count++;
+        }
+    }
+    return std::vector<double>{decided_count};
+}
+
 std::vector<double> neighbor_count(std::vector<Kilosim::Robot *> &robots)
 {
     // Get the number of neighbors each robot has heard from on this tick
@@ -404,6 +419,7 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
     logger.add_aggregator("num_neighbors", neighbor_count);
     logger.add_aggregator("network_eigenvals", network_eigenvals);
     logger.add_aggregator("decision_states", decision_states);
+    logger.add_aggregator("has_decided_count", has_decided_count);
 
     // Kilosim::Viewer viewer(world, 1200);
     // viewer.set_show_network(true);
