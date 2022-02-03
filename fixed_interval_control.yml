@@ -1,0 +1,60 @@
+# This is the for testing the same hybrid-algorithm2, but with a FIXED update
+# interval, rather than depending on the time since a new minimum was found.
+
+# -- FIXED PARAMETERS ----------------------------------------------------------
+
+world_grid_width: 384
+world_grid_height: 384
+
+# config.json files generated from this will go in this directory
+data_dir_base: '/media/jtebert/data2/hybrid-algorithm2/lab-fixed_interval_control'
+# data_dir_base: '/media/jtebert/home-data/hybrid-algorithm2/home-fixed_interval_control'
+# data_dir_base: '/media/woodlab/DATAPART1/jtebert/grid-decisions-data/hybrid-algorithm2/woodlab-fixed_interval_control'
+
+start_trial: 1
+num_trials: 50
+max_trial_duration: 5000
+img_dir: "imgs"
+
+# THESE ARE PLACEHOLDERS; THEY AREN'T USED OR TUNED FOR THIS STAGE
+# Boids parameters (only in hybrid movement)
+lj_a: 6 # Lennard-Jones potential
+lj_b: 3 # Lennard-Jones potential
+lj_epsilon: 1
+lj_gamma: 1
+boids_step_interval: 10
+rx_table_timeout: 512
+post_decision_movement: "flock"
+
+# -- FOR PSO ONLY --------------------------------------------------------------
+
+end_condition: 'first_find'
+end_val: 4
+movement_type: 'hybrid'
+target_val: 4 # Same as value-based end val, so that time-based ending condition knows it
+
+# Flag for whether to use pso_step interval as constant (default) or in above func.
+is_pso_step_interval_constant: true
+
+# -- FIXED TEST_PARAMETERS -----------------------------------------------------
+
+max_speed: 25
+num_robots: 8
+gradient_weight: 0
+
+# -- VARIED PARAMETERS ---------------------------------------------------------
+
+vary_params:
+- env_octaves
+- comm_range
+- pso_inertia
+- pso_weights
+- pso_step_interval
+# - gradient_weight
+
+pso_step_interval: [1, 32, 128]
+comm_range: [32, 800]
+env_octaves: [1, 3, 5]
+# gradient_weight: [0, 4, 8, 16, 64]
+pso_inertia: [0, 0.5, 1.0, 10.0]
+pso_weights: [0, 0.01, 0.1, 1]
