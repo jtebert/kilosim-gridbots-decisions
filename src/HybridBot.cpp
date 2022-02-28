@@ -117,7 +117,7 @@ namespace Kilosim
 
         void setup()
         {
-            set_led(100, 0, 0);
+            // set_led(100, 0, 0);
             // curr_pos = get_pos();
             m_state = INIT;
         };
@@ -170,7 +170,8 @@ namespace Kilosim
                 velocity = set_pso_path(target_pos, velocity, sqrt(pow(m_arena_width, 2) + pow(m_arena_height, 2)));
                 // std::cout << "INIT: " << target_pos.x << "," << target_pos.y << " (" << velocity[0] << "," << velocity[1] << ")" << std::endl;
                 m_state = SPREAD;
-                set_led(100, 0, 100);
+                // set_led(100, 0, 100);
+                set_led(100, 0, 0);
             }
             else if (m_state == SPREAD)
             {
@@ -200,7 +201,7 @@ namespace Kilosim
                 // std::cout << tick << ", " << next_vel_update_tick << std::endl;
                 if (tick >= next_vel_update_tick)
                 {
-                    set_led(0, 0, 100);
+                    // set_led(0, 0, 100);
                     pos_vel new_pos_vel = pso_velocity_update(pos_samples);
                     target_pos = new_pos_vel.pos;
                     velocity = set_pso_path(target_pos, new_pos_vel.vel);
@@ -295,6 +296,7 @@ namespace Kilosim
             }
             else if (m_state == SEND_HOME)
             {
+                // set_led(0, 50, 100);
                 // Prepape for the GO_HOME state
                 target_pos = home_pos;
                 set_pso_path(target_pos, {0, 0}, 1000);
