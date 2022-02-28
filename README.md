@@ -1,15 +1,23 @@
-## How initially created
+# Hybrid PSO Multi-robot Target Search with Kilosim Gridbots
 
+[![GitHub release](https://img.shields.io/github/release-pre/jtebert/kilosim-gridbots-decisions)](https://github.com/jtebert/kilosim-gridbots-decisions/releases)
+[![DOI](https://zenodo.org/badge/367097485.svg)](https://zenodo.org/badge/latestdoi/367097485)
+
+This code accompanies the 2022 IROS submission: "A Hybrid PSO Algorithm for Multi-robot Target Search and Decision Awareness" and is built on the [Kilosim simulator.](https://github.com/jtebert/kilosim)
+
+## Initial Setup
+
+Clone the repository *with the submodule dependencies:*
 ```shell
-mkdir submodules
-cd submodules
-git submodule add git@github.com:jtebert/kilosim-gridbots.git
-git submodule update --init --recursive
-cd ..
+git clone --recurse-submodules git@github.com:jtebert/kilosim-gridbots-decisions.git
+```
+(You can also use `https://github.com/jtebert/kilosim-gridbots-decisions.git` to clone with HTTPS instead of SSH.)
+
+Use CMAKE to set up the build environment:
+```shell
 mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=../ ..
-make
 ```
 
 ## Use
@@ -29,13 +37,13 @@ From project root directory, run:
 
 To profile with `gprof` you need to run a different `cmake` command (from the build folder):
 
-```
+```shell
 cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_FLAGS=-pg -DCMAKE_INSTALL_PREFIX=../ ..
 ```
 
 This will generate a file called `gmon.out`. You can create an analysis with:
 
-```
+```shell
 gprof gridbots_decisions gmon.out  > analysis.txt
 ```
 
@@ -54,13 +62,25 @@ Then activate it when you want to run this:
 source venv/bin/activate
 ```
 
-You can now run the following options for generating parameter sweeps and running them.
+You can now run the following options for generating parameter sweeps from YAML files and running them. For examples, see `pre_decision_gen_config_2.yml`, `post_decision_gen_config_2.yml`, `fixed_interval_gen_config.yml`, and `benchmark_gen_config_2.yml`. (These are the files used to generate the IROS paper data.)
 
 - `python manage.py generate SOURCE_YAML`: Generate all of the specific configuration files from a generator YAML file (see distributed/gen_config.yml for an example). This will create all of the data directories *that don't already exist* and place the config files in them. It will also generate `data_dirs.txt` in the current directory containing the paths to all of the new folders/configs that were generated. (This will *not* include any folders that are skipped because they already exist.)
 - `python manage.py split NUM`: Split `data_dirs.txt` into multiple files (`data_dirs_split_NUM.txt`) to use on different system threads.
 - `python manage.py run EXEC_FILE NUM`: Run all of the experiments listed in `data_dirs_split_NUM.txt`. This will pass the config file found in the directory to the `EXEC_FILE` to run. For example: `python manage.py distributed/main.py 1`.
 
-## Running on multiple computers
+---
+
+## Development Notes
+
+### How initially created
+
+```shell
+mkdir submodules
+cd submodules
+git submodule add git@github.com:jtebert/kilosim-gridbots.git
+git submodule update --init --recursive
+```
+### Running on multiple computers
 
 This is the process for splitting a batch to run across multiple computers
 
