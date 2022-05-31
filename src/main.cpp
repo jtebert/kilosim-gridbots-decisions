@@ -430,21 +430,21 @@ void hybrid_sim(Kilosim::World &world, Kilosim::Logger &logger, Kilosim::ConfigP
     logger.add_aggregator("decision_states", decision_states);
     logger.add_aggregator("has_decided_count", has_decided_count);
 
-    // Kilosim::Viewer viewer(world, 1200);
+    Kilosim::Viewer viewer(world, 1080);
     // viewer.set_show_network(true);
     // viewer.set_show_tags(true);
 
-    // sleep(2);
+    sleep(2);
     while (!is_finished(world, robots, end_condition, end_val) &&
            world.get_tick() < max_duration)
     {
-        // viewer.draw();
+        viewer.draw();
         world.step();
         if (world.get_tick() % 20 == 0)
         {
             logger.log_state();
         }
-        // usleep(10000);
+        usleep(10000);
     }
 }
 

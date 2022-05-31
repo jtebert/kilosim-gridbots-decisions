@@ -300,7 +300,7 @@ namespace Kilosim
                 // Prepape for the GO_HOME state
                 target_pos = home_pos;
                 set_pso_path(target_pos, {0, 0}, 1000);
-                // set_led(0, 0, 100);
+                set_led(0, 100, 100);
                 m_state = GO_HOME;
             }
             else if (m_state == GO_HOME)

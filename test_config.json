@@ -24,7 +24,7 @@
     "log_dir": "data/",
     "end_condition": "value",
     "target_val": 4,
-    "post_decision_movement": "disperse",
+    "post_decision_movement": "hybrid",
     "end_condition_params": {
         "time": {
             "end_val": 1000
